@@ -1,0 +1,206 @@
+# validação deploy da aplicação homolog, infraestrutura, add-ons e observabilidade
+name: CI
+on:
+  push:
+  pull_request:
+    branches: [main, homolog]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-validation:
+    name: Repository validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate GitHub Actions workflows
+        run: |
+          curl --retry 3 --retry-all-errors -fsSL \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            -o /tmp/actionlint.tar.gz
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint
+
+      - name: Validate PowerShell environment automation
+        shell: pwsh
+        run: ./scripts/tests/configure-environment.Tests.ps1
+
+      - name: Validate PowerShell destroy automation
+        shell: pwsh
+        run: ./scripts/tests/destroy-environment.Tests.ps1
+
+      - name: Validate PowerShell provision automation
+        shell: pwsh
+        run: ./scripts/tests/provision-environment.Tests.ps1
+
+      - name: Test Backend output synchronization
+        run: python3 -m unittest tests/test_sync_backend_outputs.py
+
+  build:
+    name: Build, test & coverage
+    needs: repository-validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Grant execute permission for mvnw
+        run: chmod +x mvnw
+
+      - name: Format, build, tests and JaCoCo
+        run: ./mvnw -B spotless:check verify
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco
+          if-no-files-found: warn
+
+  sonarcloud:
+    name: SonarCloud
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'tiagomiele' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: SonarCloud scan + quality gate
+        if: env.SONAR_TOKEN != ''
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.organization="$SONAR_ORGANIZATION" \
+            -Dsonar.qualitygate.wait=true
+
+      - name: SonarCloud pendente
+        if: env.SONAR_TOKEN == ''
+        run: echo '::warning::SONAR_TOKEN não configurado; análise SonarCloud ignorada.'
+
+  sbom:
+    name: SBOM (CycloneDX) + Dependency-Track
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Grant execute permission for mvnw
+        run: chmod +x mvnw
+
+      - name: Generate CycloneDX SBOM
+        run: ./mvnw -B -DskipTests package cyclonedx:makeAggregateBom
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: |
+            target/bom.xml
+            target/bom.json
+          if-no-files-found: error
+
+      - name: Upload SBOM to Dependency-Track
+        if: ${{ env.DTRACK_URL != '' && env.DTRACK_API_KEY != '' }}
+        env:
+          DTRACK_URL: ${{ secrets.DEPENDENCY_TRACK_URL }}
+          DTRACK_API_KEY: ${{ secrets.DEPENDENCY_TRACK_API_KEY }}
+          DTRACK_PROJECT_NAME: ${{ vars.DEPENDENCY_TRACK_PROJECT_NAME || 'oficina-backend' }}
+          DTRACK_PROJECT_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          echo "Uploading SBOM to Dependency-Track at $DTRACK_URL"
+          curl -fsS -X POST "$DTRACK_URL/api/v1/bom" \
+            -H "X-Api-Key: $DTRACK_API_KEY" \
+            -H "Content-Type: multipart/form-data" \
+            -F "autoCreate=true" \
+            -F "projectName=$DTRACK_PROJECT_NAME" \
+            -F "projectVersion=$DTRACK_PROJECT_VERSION" \
+            -F "bom=@target/bom.xml"
+          echo "SBOM uploaded. Dependency-Track will process it asynchronously."
+
+  security:
+    name: Security scan
+    needs: sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload SARIF
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+      - name: Upload Trivy SARIF as artifact (fallback)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-sarif
+          path: trivy-fs.sarif
+          if-no-files-found: warn
+
+      - name: Detect committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
