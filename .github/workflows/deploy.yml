@@ -1,0 +1,284 @@
+# validação deploy da aplicação homolog, infraestrutura, add-ons e observabilidade
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment alvo
+        required: true
+        type: string
+      namespace:
+        description: Namespace Kubernetes do ambiente
+        required: true
+        type: string
+      image_ref:
+        description: Imagem completa a ser implantada
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }} (${{ inputs.namespace }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      APP_DB_URL: ${{ vars.APP_DB_URL }}
+      APP_DB_USER: ${{ vars.APP_DB_USER || 'oficina_admin' }}
+      SQS_OS_EVENTOS_URL: ${{ vars.SQS_OS_EVENTOS_URL }}
+      SQS_DIAGNOSTICO_REPARO_COMANDOS_URL: ${{ vars.SQS_DIAGNOSTICO_REPARO_COMANDOS_URL }}
+      SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL: ${{ vars.SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL }}
+      SERVERLESS_JWT_ISSUER: ${{ vars.SERVERLESS_JWT_ISSUER || 'fiap-tc-fase4-oficina-auth-serverless' }}
+      SERVERLESS_JWT_AUDIENCE: ${{ vars.SERVERLESS_JWT_AUDIENCE || 'oficina-backend' }}
+      NEW_RELIC_ENABLED: ${{ vars.NEW_RELIC_ENABLED || 'false' }}
+      NEW_RELIC_APP_NAME: ${{ vars.NEW_RELIC_APP_NAME }}
+      AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL || vars.API_GATEWAY_BASE_URL }}
+      NOTIFICATION_ENDPOINT: ${{ vars.NOTIFICATION_ENDPOINT }}
+      DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED || 'false' }}
+      TF_CLOUD_ORGANIZATION: ${{ vars.TF_CLOUD_ORGANIZATION }}
+      TF_WORKSPACE_AUTH: ${{ vars.TF_WORKSPACE_AUTH }}
+      TF_WORKSPACE_OBSERVABILITY: ${{ vars.TF_WORKSPACE_OBSERVABILITY }}
+    steps:
+      - name: Deployment gate
+        run: |
+          if [ "$DEPLOY_ENABLED" != "true" ]; then
+            echo '::error::Deploy bloqueado: DEPLOY_ENABLED deve valer true após a sincronização dos outputs de EKS e RDS.'
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        if: env.DEPLOY_ENABLED == 'true'
+
+      - name: Validate required environment configuration
+        if: env.DEPLOY_ENABLED == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
+          APP_JWT_SECRET: ${{ secrets.APP_JWT_SECRET }}
+          APP_ADMIN_PASSWORD: ${{ secrets.APP_ADMIN_PASSWORD }}
+          APP_SERVERLESS_JWT_PUBLIC_KEY: ${{ secrets.SERVERLESS_JWT_PUBLIC_KEY }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          NOTIFICATION_API_KEY: ${{ secrets.NOTIFICATION_API_KEY }}
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
+          SYNC_APP_CLIENT_ID: ${{ vars.SYNC_APP_CLIENT_ID }}
+          SYNC_APP_PRIVATE_KEY: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_DB_PASSWORD APP_JWT_SECRET APP_ADMIN_PASSWORD APP_SERVERLESS_JWT_PUBLIC_KEY TF_API_TOKEN; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          for name in EKS_CLUSTER_NAME APP_DB_URL APP_DB_USER SQS_OS_EVENTOS_URL SQS_DIAGNOSTICO_REPARO_COMANDOS_URL SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL AUTH_BASE_URL TF_CLOUD_ORGANIZATION TF_WORKSPACE_AUTH TF_WORKSPACE_OBSERVABILITY; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ -z "$GITHUB_SYNC_TOKEN" ] && { [ -z "$SYNC_APP_CLIENT_ID" ] || [ -z "$SYNC_APP_PRIVATE_KEY" ]; }; then
+            missing+=("REPO_SYNC_TOKEN ou SYNC_APP_CLIENT_ID+SYNC_APP_PRIVATE_KEY")
+          fi
+          if [ "${NEW_RELIC_ENABLED,,}" = "true" ] && [ -z "$NEW_RELIC_LICENSE_KEY" ]; then
+            missing+=("NEW_RELIC_LICENSE_KEY")
+          fi
+          if [ -n "$NOTIFICATION_ENDPOINT" ] && [ -z "$NOTIFICATION_API_KEY" ]; then
+            missing+=("NOTIFICATION_API_KEY")
+          fi
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Configure no GitHub Environment %s: %s\n' '${{ inputs.environment }}' "${missing[*]}"
+            exit 1
+          fi
+
+      - name: Configure AWS Academy credentials
+        if: env.DEPLOY_ENABLED == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate AWS session
+        if: env.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
+      - name: Setup kubectl
+        if: env.DEPLOY_ENABLED == 'true'
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.34.0'
+
+      - name: Configure cluster access
+        if: env.DEPLOY_ENABLED == 'true'
+        id: cluster
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+          kubectl cluster-info
+
+      - name: Render application manifests
+        if: env.DEPLOY_ENABLED == 'true'
+        env:
+          TARGET_NS: ${{ inputs.namespace }}
+          IMAGE_REF: ${{ inputs.image_ref }}
+        run: |
+          set -euo pipefail
+          rm -rf rendered
+          mkdir -p rendered
+          cp k8s/namespace.yaml k8s/app-deployment.yaml k8s/app-service.yaml k8s/hpa.yaml k8s/pdb.yaml rendered/
+          sed -i "s|name: oficina$|name: ${TARGET_NS}|" rendered/namespace.yaml
+          sed -i "s|namespace: oficina$|namespace: ${TARGET_NS}|" rendered/*.yaml
+          sed -i "s|image: oficina-backend:latest|image: ${IMAGE_REF}|" rendered/app-deployment.yaml
+          kubectl apply -f rendered/namespace.yaml
+
+      - name: Provision application configuration
+        if: env.DEPLOY_ENABLED == 'true'
+        env:
+          TARGET_NS: ${{ inputs.namespace }}
+          APP_DB_PASSWORD: ${{ secrets.APP_DB_PASSWORD }}
+          APP_JWT_SECRET: ${{ secrets.APP_JWT_SECRET }}
+          APP_ADMIN_PASSWORD: ${{ secrets.APP_ADMIN_PASSWORD }}
+          APP_SERVERLESS_JWT_PUBLIC_KEY: ${{ secrets.SERVERLESS_JWT_PUBLIC_KEY }}
+          NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+          NOTIFICATION_API_KEY: ${{ secrets.NOTIFICATION_API_KEY }}
+        run: |
+          set -euo pipefail
+          nr_enabled="${NEW_RELIC_ENABLED,,}"
+          if [ "$nr_enabled" != "true" ]; then nr_enabled=false; fi
+          nr_app_name="${NEW_RELIC_APP_NAME:-oficina-backend-${{ inputs.environment }}}"
+          notification_type=log
+          if [ -n "$NOTIFICATION_ENDPOINT" ]; then notification_type=serverless; fi
+          kubectl create configmap oficina-config \
+            --namespace "$TARGET_NS" \
+            --from-literal=DB_URL="$APP_DB_URL" \
+            --from-literal=DB_USER="$APP_DB_USER" \
+            --from-literal=SERVER_PORT=8080 \
+            --from-literal=SPRING_PROFILES_ACTIVE=prod \
+            --from-literal=OFICINA_ENVIRONMENT='${{ inputs.environment }}' \
+            --from-literal=ADMIN_EMAIL=admin@oficina.local \
+            --from-literal=AUTH_BASE_URL="$AUTH_BASE_URL" \
+            --from-literal=NOTIFICACAO_TIPO="$notification_type" \
+            --from-literal=NOTIFICATION_ENDPOINT="$NOTIFICATION_ENDPOINT" \
+            --from-literal=SERVERLESS_JWT_ISSUER="$SERVERLESS_JWT_ISSUER" \
+            --from-literal=SERVERLESS_JWT_AUDIENCE="$SERVERLESS_JWT_AUDIENCE" \
+            --from-literal=MENSAGERIA_TIPO=sqs \
+            --from-literal=AWS_REGION="$AWS_REGION" \
+            --from-literal=SQS_OS_EVENTOS_URL="$SQS_OS_EVENTOS_URL" \
+            --from-literal=SQS_DIAGNOSTICO_REPARO_COMANDOS_URL="$SQS_DIAGNOSTICO_REPARO_COMANDOS_URL" \
+            --from-literal=SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL="$SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL" \
+            --from-literal=JAVA_TOOL_OPTIONS=-javaagent:/opt/newrelic/newrelic.jar \
+            --from-literal=NEW_RELIC_AGENT_ENABLED="$nr_enabled" \
+            --from-literal=NEW_RELIC_APP_NAME="$nr_app_name" \
+            --from-literal=NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
+            --from-literal=NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED=false \
+            --from-literal=NEW_RELIC_APPLICATION_LOGGING_LOCAL_DECORATING_ENABLED=true \
+            --from-literal=NEW_RELIC_LOG_FILE_NAME=STDOUT \
+            --from-literal=NEW_RELIC_LABELS="environment:${{ inputs.environment }};service:oficina-backend" \
+            --from-literal=OFICINA_OBSERVABILITY_NEW_RELIC_ENABLED="$nr_enabled" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic oficina-secrets \
+            --namespace "$TARGET_NS" \
+            --from-literal=DB_PASSWORD="$APP_DB_PASSWORD" \
+            --from-literal=JWT_SECRET="$APP_JWT_SECRET" \
+            --from-literal=ADMIN_PASSWORD="$APP_ADMIN_PASSWORD" \
+            --from-literal=SERVERLESS_JWT_PUBLIC_KEY="$APP_SERVERLESS_JWT_PUBLIC_KEY" \
+            --from-literal=NEW_RELIC_LICENSE_KEY="$NEW_RELIC_LICENSE_KEY" \
+            --from-literal=NOTIFICATION_API_KEY="$NOTIFICATION_API_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply application manifests
+        if: env.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          kubectl apply -f rendered/app-deployment.yaml
+          kubectl apply -f rendered/app-service.yaml
+          kubectl apply -f rendered/hpa.yaml
+          kubectl apply -f rendered/pdb.yaml
+
+      - name: Restart application after configuration update
+        if: env.DEPLOY_ENABLED == 'true'
+        run: kubectl rollout restart deployment/oficina-app -n "${{ inputs.namespace }}"
+
+      - name: Wait for application rollout
+        if: env.DEPLOY_ENABLED == 'true'
+        run: kubectl rollout status deployment/oficina-app -n "${{ inputs.namespace }}" --timeout=1200s
+
+      - name: Smoke test
+        if: env.DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          kubectl -n "${{ inputs.namespace }}" run smoke-${{ github.run_id }} \
+            --image=curlimages/curl:8.10.1 --restart=Never --rm -i --quiet \
+            --command -- curl -fsS http://oficina-app/actuator/health/readiness
+
+      - name: Capture public Backend URL
+        if: env.DEPLOY_ENABLED == 'true'
+        id: backend-url
+        env:
+          TARGET_NS: ${{ inputs.namespace }}
+        run: |
+          set -euo pipefail
+          backend_host=''
+          for attempt in $(seq 1 30); do
+            backend_host="$(kubectl get service oficina-app -n "$TARGET_NS" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+            if [ -z "$backend_host" ]; then
+              backend_host="$(kubectl get service oficina-app -n "$TARGET_NS" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            fi
+            if [ -n "$backend_host" ]; then break; fi
+            echo "Aguardando LoadBalancer público (${attempt}/30)..."
+            sleep 10
+          done
+          if [ -z "$backend_host" ]; then
+            echo '::error::O Service oficina-app não recebeu hostname ou IP público.'
+            exit 1
+          fi
+          echo "value=http://${backend_host}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App synchronization token
+        if: env.DEPLOY_ENABLED == 'true' && vars.SYNC_APP_CLIENT_ID != ''
+        id: sync-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: fiap-tc-fase4-oficina-os-service,fiap-tc-fase4-oficina-kubernetes-infra
+
+      - name: Synchronize Backend URL with Auth and New Relic
+        if: env.DEPLOY_ENABLED == 'true'
+        env:
+          BACKEND_URL: ${{ steps.backend-url.outputs.value }}
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_SYNC_TOKEN: ${{ steps.sync-app-token.outputs.token || secrets.REPO_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/sync-backend-outputs.py \
+            --backend-url "$BACKEND_URL" \
+            --organization "$TF_CLOUD_ORGANIZATION" \
+            --auth-workspace "$TF_WORKSPACE_AUTH" \
+            --newrelic-workspace "$TF_WORKSPACE_OBSERVABILITY" \
+            --environment '${{ inputs.environment }}'
+          echo "- URL pública sincronizada com Auth e New Relic" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect diagnostics on failure
+        if: env.DEPLOY_ENABLED == 'true' && failure() && steps.cluster.outcome == 'success'
+        run: |
+          kubectl get deployment,pods,svc,hpa -n "${{ inputs.namespace }}" || true
+          kubectl describe deployment/oficina-app -n "${{ inputs.namespace }}" || true
+
+      - name: Deployment summary
+        if: env.DEPLOY_ENABLED == 'true' && success()
+        run: |
+          {
+            echo "### Deploy em '${{ inputs.environment }}'"
+            echo "- Namespace: \`${{ inputs.namespace }}\`"
+            echo "- Imagem: \`${{ inputs.image_ref }}\`"
+            echo "- New Relic: \`${NEW_RELIC_ENABLED}\`"
+            echo "- sequência: validação → build → deploy → smoke test → sincronização"
+          } >> "$GITHUB_STEP_SUMMARY"
+          kubectl get pods,svc,hpa -n "${{ inputs.namespace }}"

@@ -1,0 +1,1218 @@
+{
+  "info": {
+    "_postman_id": "7647a705-d48f-456e-a88b-a56373eb6bc4",
+    "name": "Oficina Fase 4 - Validacao E2E da Saga (homolog/production)",
+    "description": "Fluxo ponta a ponta da Saga entre OS Service, Diagnostico e Reparo e Orcamento e Pagamento, com dados sinteticos. Requer PAYMENT_PROVIDER=fake (usa POST /pagamentos/{n}/simular). Nao exporte tokens ou credenciais nos resultados.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('runId')) {",
+          "  const seed = String(Date.now()).slice(-9).padStart(9, '1');",
+          "  const cpf = (base) => {",
+          "    let digits = base.split('').map(Number);",
+          "    const check = (values, start) => {",
+          "      const sum = values.reduce((acc, value, index) => acc + value * (start - index), 0);",
+          "      const remainder = (sum * 10) % 11;",
+          "      return remainder === 10 ? 0 : remainder;",
+          "    };",
+          "    digits.push(check(digits, 10));",
+          "    digits.push(check(digits, 11));",
+          "    return digits.join('');",
+          "  };",
+          "  const runId = String(Date.now());",
+          "  pm.collectionVariables.set('runId', runId);",
+          "  pm.collectionVariables.set('ownerCpf', cpf(seed));",
+          "  pm.collectionVariables.set('otherCpf', cpf(String(Number(seed) + 101).padStart(9, '2').slice(-9)));",
+          "  pm.collectionVariables.set('vehiclePlate', `TST${runId.slice(-3, -2)}A${runId.slice(-2)}`);",
+          "  pm.collectionVariables.set('serviceName', `Validacao ${runId}`);",
+          "  pm.collectionVariables.set('technicianEmail', `tecnico-${runId}@teste.local`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "backendBaseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "apiGatewayBaseUrl",
+      "value": ""
+    },
+    {
+      "key": "authBaseUrl",
+      "value": ""
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@oficina.local"
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "runId",
+      "value": ""
+    },
+    {
+      "key": "ownerCpf",
+      "value": ""
+    },
+    {
+      "key": "otherCpf",
+      "value": ""
+    },
+    {
+      "key": "vehiclePlate",
+      "value": ""
+    },
+    {
+      "key": "serviceName",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "ownerToken",
+      "value": ""
+    },
+    {
+      "key": "ownerClientId",
+      "value": ""
+    },
+    {
+      "key": "otherClientId",
+      "value": ""
+    },
+    {
+      "key": "serviceId",
+      "value": ""
+    },
+    {
+      "key": "numeroOs",
+      "value": ""
+    },
+    {
+      "key": "technicianEmail",
+      "value": ""
+    },
+    {
+      "key": "technicianPassword",
+      "value": "TecnicoSintetico123!"
+    },
+    {
+      "key": "technicianToken",
+      "value": ""
+    },
+    {
+      "key": "otherToken",
+      "value": ""
+    },
+    {
+      "key": "diagnosticoReparoBaseUrl",
+      "value": ""
+    },
+    {
+      "key": "orcamentoPagamentoBaseUrl",
+      "value": ""
+    },
+    {
+      "key": "pollAttempts",
+      "value": ""
+    },
+    {
+      "key": "osCorrelationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Disponibilidade e correlacao",
+      "item": [
+        {
+          "name": "Health readiness e X-Request-Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "postman-health-{{$guid}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/actuator/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('health responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('request id foi devolvido', () => pm.expect(pm.response.headers.get('X-Request-Id')).to.be.ok);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request ID inseguro e longo e substituido",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Request-Id",
+                "value": "cpf=52998224725 token=nao-pode-aparecer-em-log"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/actuator/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('request id invalido foi substituido', () => {",
+                  "  const id = pm.response.headers.get('X-Request-Id');",
+                  "  pm.expect(id).to.be.ok.and.not.equal('cpf=52998224725 token=nao-pode-aparecer-em-log');",
+                  "  pm.expect(id.length).to.be.at.most(64);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Diagnostico e Reparo pronto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{diagnosticoReparoBaseUrl}}/actuator/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('diagnostico e reparo responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orcamento e Pagamento pronto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{orcamentoPagamentoBaseUrl}}/actuator/health/readiness"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('orcamento e pagamento responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Preparacao e diagnostico pela Saga",
+      "item": [
+        {
+          "name": "Login administrativo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-admin-login-{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"senha\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('login administrativo autorizado', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.papel).to.equal('FUNCIONARIO_DA_OFICINA');",
+                  "pm.collectionVariables.set('adminToken', json.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar tecnico sintetico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{technicianEmail}}\",\n  \"senha\": \"{{technicianPassword}}\",\n  \"papel\": \"TECNICO_DA_OFICINA\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/usuarios"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('tecnico sintetico criado', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().papel).to.equal('TECNICO_DA_OFICINA'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login tecnico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{technicianEmail}}\",\n  \"senha\": \"{{technicianPassword}}\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('login tecnico autorizado', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.papel).to.equal('TECNICO_DA_OFICINA');",
+                  "pm.collectionVariables.set('technicianToken', json.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar cliente proprietario sintetico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-owner-{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Cliente Sintetico {{runId}}\",\n  \"documento\": \"{{ownerCpf}}\",\n  \"email\": \"owner-{{runId}}@teste.local\",\n  \"telefone\": \"11999999999\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/clientes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('cliente proprietario criado', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('ownerClientId', pm.response.json().idCliente);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar segundo cliente sintetico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-other-{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Outro Cliente Sintetico {{runId}}\",\n  \"documento\": \"{{otherCpf}}\",\n  \"email\": \"other-{{runId}}@teste.local\",\n  \"telefone\": \"11888888888\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/clientes"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('segundo cliente criado', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('otherClientId', pm.response.json().idCliente);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar veiculo sintetico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"placa\": \"{{vehiclePlate}}\",\n  \"marca\": \"Fiat\",\n  \"modelo\": \"Uno\",\n  \"ano\": 2020,\n  \"idCliente\": {{ownerClientId}}\n}"
+            },
+            "url": "{{backendBaseUrl}}/veiculos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('veiculo criado', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar servico sintetico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{serviceName}}\",\n  \"descricao\": \"Servico sintetico de validacao\",\n  \"precoBase\": 150.00\n}"
+            },
+            "url": "{{backendBaseUrl}}/servicos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('servico criado', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('serviceId', pm.response.json().idServico);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar ordem de servico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-saga-{{runId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idCliente\": {{ownerClientId}},\n  \"placa\": \"{{vehiclePlate}}\",\n  \"descricaoProblema\": \"Validacao E2E da Saga Fase 4\"\n}"
+            },
+            "url": "{{backendBaseUrl}}/ordens-servico"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('OS criada', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('numeroOs', pm.response.json().numero);",
+                  "pm.collectionVariables.set('osCorrelationId', `postman-saga-${pm.collectionVariables.get('runId')}`);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comando INICIAR_DIAGNOSTICO chega ao tecnico",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().etapa : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'NA_FILA_DIAGNOSTICO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('execucao na fila de diagnostico', () => pm.expect(current).to.equal('NA_FILA_DIAGNOSTICO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tecnico inicia diagnostico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}/iniciar-diagnostico"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('diagnostico iniciado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS entra em diagnostico",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'EM_DIAGNOSTICO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('OS em diagnostico', () => pm.expect(current).to.equal('EM_DIAGNOSTICO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Adicionar servico na OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idServicoSku\": {{serviceId}},\n  \"quantidade\": 1\n}"
+            },
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}/servicos"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('servico adicionado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tecnico conclui diagnostico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}/concluir-diagnostico",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"diagnostico\": \"Validacao E2E da Saga\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('diagnostico concluido', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS aguarda aprovacao",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'AGUARDANDO_APROVACAO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('OS aguarda aprovacao', () => pm.expect(current).to.equal('AGUARDANDO_APROVACAO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Autenticacao serverless e seguranca",
+      "item": [
+        {
+          "name": "Autenticar proprietario por CPF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cpf\":\"{{ownerCpf}}\"}"
+            },
+            "url": "{{authBaseUrl}}/auth/cpf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('CPF ativo recebe token', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.expect(json.tokenType).to.equal('Bearer');",
+                  "pm.collectionVariables.set('ownerToken', json.accessToken);",
+                  "let payload = json.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+                  "while (payload.length % 4) payload += '=';",
+                  "const claims = JSON.parse(atob(payload));",
+                  "pm.expect(String(claims.sub)).to.equal(String(pm.collectionVariables.get('ownerClientId')));",
+                  "pm.expect(claims.role).to.equal('CLIENTE');",
+                  "pm.expect(JSON.stringify(claims)).not.to.include(pm.collectionVariables.get('ownerCpf'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Autenticar segundo cliente por CPF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cpf\":\"{{otherCpf}}\"}"
+            },
+            "url": "{{authBaseUrl}}/auth/cpf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('segundo cliente recebe token', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('otherToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejeitar CPF invalido sem enumeracao",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cpf\":\"11111111111\"}"
+            },
+            "url": "{{authBaseUrl}}/auth/cpf"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('CPF invalido retorna resposta generica', () => { pm.response.to.have.status(401); pm.expect(pm.response.text()).not.to.include('11111111111'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota protegida sem token",
+          "request": {
+            "method": "GET",
+            "url": "{{apiGatewayBaseUrl}}/consulta/ordens-servico/{{numeroOs}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Authorizer bloqueia ausencia de token', () => pm.expect(pm.response.code).to.be.oneOf([401, 403]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota protegida com token adulterado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}adulterado"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/consulta/ordens-servico/{{numeroOs}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Authorizer bloqueia token adulterado', () => pm.expect(pm.response.code).to.be.oneOf([401, 403]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Outro cliente nao acessa a OS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{otherToken}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/consulta/ordens-servico/{{numeroOs}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('resposta nao revela propriedade da OS', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  const error = pm.response.json();",
+                  "  pm.expect(error.codigo).to.equal('OS_NAO_ENCONTRADA');",
+                  "  pm.expect(error.mensagem).to.equal('Ordem de serviço não encontrada');",
+                  "  pm.expect(error.detalhes).to.be.an('array').that.is.empty;",
+                  "  pm.expect(pm.response.text()).not.to.include(pm.collectionVariables.get('ownerCpf'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Proprietario consulta a OS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}"
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "postman-owner-status-{{$guid}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/consulta/ordens-servico/{{numeroOs}}/status"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('proprietario consulta a propria OS', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Proprietario consulta orcamento pelo API Gateway",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/orcamentos/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'AGUARDANDO_APROVACAO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('orcamento aguarda aprovacao', () => pm.expect(current).to.equal('AGUARDANDO_APROVACAO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Orcamento, reparo e pagamento pela Saga",
+      "item": [
+        {
+          "name": "Proprietario aprova orcamento pelo API Gateway",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/orcamentos/{{numeroOs}}/aprovar"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('orcamento aprovado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS entra em execucao",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'EM_EXECUCAO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('OS em execucao', () => pm.expect(current).to.equal('EM_EXECUCAO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comando INICIAR_REPARO chega ao tecnico",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().etapa : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'NA_FILA_REPARO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('execucao na fila de reparo', () => pm.expect(current).to.equal('NA_FILA_REPARO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tecnico inicia reparo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}/iniciar-reparo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('reparo iniciado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tecnico conclui reparo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{diagnosticoReparoBaseUrl}}/execucoes/{{numeroOs}}/concluir-reparo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('reparo concluido', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS aguarda pagamento",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'AGUARDANDO_PAGAMENTO' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('OS aguarda pagamento', () => pm.expect(current).to.equal('AGUARDANDO_PAGAMENTO'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Proprietario consulta pagamento pendente",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/pagamentos/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'PENDENTE' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('pagamento pendente', () => pm.expect(current).to.equal('PENDENTE'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagamento fake aprovado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{orcamentoPagamentoBaseUrl}}/pagamentos/{{numeroOs}}/simular?aprovado=true"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('pagamento simulado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS paga",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const attempts = Number(pm.collectionVariables.get('pollAttempts') || 0);",
+                  "const current = pm.response.code === 200 ? pm.response.json().status : `HTTP ${pm.response.code}`;",
+                  "if (current !== 'PAGA' && attempts < 30) {",
+                  "  pm.collectionVariables.set('pollAttempts', attempts + 1);",
+                  "  setTimeout(() => {}, 3000);",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.collectionVariables.set('pollAttempts', 0);",
+                  "  pm.test('OS paga', () => pm.expect(current).to.equal('PAGA'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Administracao entrega veiculo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{technicianToken}}"
+              }
+            ],
+            "url": "{{backendBaseUrl}}/ordens-servico/{{numeroOs}}/entregar"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('OS entregue', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.equal('ENTREGUE'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historico final correlacionado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerToken}}"
+              }
+            ],
+            "url": "{{apiGatewayBaseUrl}}/ordens-servico/{{numeroOs}}/historico"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('historico registra a Saga com o mesmo correlationId', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const history = pm.response.json();",
+                  "  pm.expect(history.map(item => item.status)).to.include.members(['EM_DIAGNOSTICO', 'AGUARDANDO_APROVACAO', 'EM_EXECUCAO', 'AGUARDANDO_PAGAMENTO', 'PAGA', 'ENTREGUE']);",
+                  "  const saga = history.filter(item => item.status !== 'ENTREGUE');",
+                  "  pm.expect(saga.every(item => item.correlationId === pm.collectionVariables.get('osCorrelationId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

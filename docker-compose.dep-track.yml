@@ -1,0 +1,67 @@
+# OWASP Dependency-Track — stack standalone para uso local (apresentacao,
+# desenvolvimento, demo). Independente do docker-compose.yml principal da
+# aplicacao para evitar conflitos de portas e ciclo de vida.
+#
+# Uso:
+#   docker compose -f docker-compose.dep-track.yml up -d
+#   # primeiro boot leva ~3-5 min (download das imagens + bootstrap do DB)
+#   # acompanhe os logs com:
+#   docker compose -f docker-compose.dep-track.yml logs -f apiserver
+#
+# UI:        http://localhost:9090     (login inicial admin / admin — troca obrigatoria)
+# API:       http://localhost:9091/api
+# Health:    http://localhost:9091/health
+#
+# Como enviar o SBOM gerado pela aplicacao:
+#   ./mvnw -DskipTests package cyclonedx:makeAggregateBom
+#   curl -X POST http://localhost:9091/api/v1/bom \
+#     -H "X-Api-Key: <sua-chave-da-UI>" \
+#     -F "autoCreate=true" \
+#     -F "projectName=oficina-backend" \
+#     -F "projectVersion=0.1.0-SNAPSHOT" \
+#     -F "bom=@target/bom.xml"
+#
+# Documentacao completa: docs-fase1/04-security/dependency-track-readme.md
+# Documentacao oficial:  https://docs.dependencytrack.org/
+
+services:
+  apiserver:
+    image: dependencytrack/apiserver:4.11.5
+    container_name: oficina-dtrack-apiserver
+    ports:
+      - "9091:8080"
+    volumes:
+      - dtrack-data:/data
+    environment:
+      # Heap minimo exigido pela Dependency-Track. Sem isso o apiserver aborta
+      # no boot com "requires a minimum of 4GB RAM (heap)".
+      EXTRA_JAVA_OPTIONS: "-Xmx4G"
+      # Por padrao a Dependency-Track usa H2 embutido (suficiente para uso
+      # local). Para producao, troque para PostgreSQL (variaveis ALPINE_*)
+      # conforme docs.dependencytrack.org.
+      ALPINE_DATABASE_MODE: "embedded"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 5
+
+  frontend:
+    image: dependencytrack/frontend:4.11.5
+    container_name: oficina-dtrack-frontend
+    depends_on:
+      - apiserver
+    ports:
+      - "9090:8080"
+    environment:
+      # URL que o navegador do usuario usa para falar com a API. Como o
+      # frontend roda no browser, precisa ser o endereco publico do apiserver
+      # (nao o nome do servico no docker network).
+      API_BASE_URL: "http://localhost:9091"
+    restart: unless-stopped
+
+volumes:
+  dtrack-data:
+    name: oficina-dtrack-data

@@ -1,0 +1,123 @@
+spring:
+  application:
+    name: oficina-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/oficina}
+    username: ${DB_USER:oficina}
+    password: ${DB_PASSWORD:oficina}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    default-property-inclusion: non_null
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  health:
+    # Notificação por e-mail é efeito colateral opcional; não deve acoplar a
+    # saúde da aplicação ao servidor SMTP (evita /actuator/health DOWN quando
+    # MAIL_HOST não está configurado, ex.: modo log).
+    mail:
+      enabled: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    # Tags ordenadas alfabeticamente — como começam com "01-", "02-", "03-", "04-",
+    # ficam na ordem desejada (Auth, Administrativo, Tecnico, Cliente).
+    tags-sorter: alpha
+    # Operações ordenadas pelo prefixo numérico do @Operation(summary) (ex: "01.01",
+    # "01.02", ...). Função JS é avaliada pelo Swagger UI no navegador.
+    # Sentinel substituído em runtime pelo SwaggerOrderConfig por uma função JS real
+    # (Springdoc serializa qualquer valor como string em JSON, então não aceita função literal aqui).
+    operationsSorter: __OFICINA_OPERATIONS_SORTER__
+
+oficina:
+  environment: ${OFICINA_ENVIRONMENT:local}
+  observability:
+    new-relic:
+      enabled: ${OFICINA_OBSERVABILITY_NEW_RELIC_ENABLED:false}
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-in-production-at-least-32-chars-long-please}
+      issuer: oficina-backend
+      access-token-ttl-minutes: 15
+      refresh-token-ttl-days: 7
+    serverless-jwt:
+      public-key: ${SERVERLESS_JWT_PUBLIC_KEY:}
+      issuer: ${SERVERLESS_JWT_ISSUER:fiap-tc-fase4-oficina-auth-serverless}
+      audience: ${SERVERLESS_JWT_AUDIENCE:oficina-backend}
+    serverless-auth:
+      base-url: ${AUTH_BASE_URL:}
+    rate-limit:
+      login-per-minute: 10
+      public-per-minute: 30
+  bootstrap:
+    admin:
+      email: ${ADMIN_EMAIL:admin@oficina.local}
+      password: ${ADMIN_PASSWORD:admin123}
+  notificacao:
+    # log (default), smtp ou serverless
+    tipo: ${NOTIFICACAO_TIPO:log}
+    remetente: ${NOTIFICACAO_REMETENTE:nao-responder@oficina.local}
+    serverless:
+      endpoint: ${NOTIFICATION_ENDPOINT:}
+      api-key: ${NOTIFICATION_API_KEY:}
+      connect-timeout: ${NOTIFICATION_CONNECT_TIMEOUT:2s}
+      read-timeout: ${NOTIFICATION_READ_TIMEOUT:12s}
+  interno:
+    # Chave compartilhada com o Auth Serverless (a mesma das notificações).
+    api-key: ${NOTIFICATION_API_KEY:}
+  mensageria:
+    # memoria (default, local/testes) ou sqs (EKS/LocalStack)
+    tipo: ${MENSAGERIA_TIPO:memoria}
+    sqs:
+      region: ${AWS_REGION:us-west-2}
+      # Endpoint customizado só para LocalStack; vazio usa o endpoint da AWS e a LabRole do nó.
+      endpoint: ${AWS_SQS_ENDPOINT:}
+      os-eventos-url: ${SQS_OS_EVENTOS_URL:}
+      diagnostico-reparo-comandos-url: ${SQS_DIAGNOSTICO_REPARO_COMANDOS_URL:}
+      orcamento-pagamento-comandos-url: ${SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL:}
+      wait-time-seconds: ${SQS_WAIT_TIME_SECONDS:20}
+      max-messages: ${SQS_MAX_MESSAGES:10}
+      poll-delay-ms: ${SQS_POLL_DELAY_MS:1000}

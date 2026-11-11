@@ -1,0 +1,153 @@
+# validação deploy da aplicação homolog, infraestrutura, add-ons e observabilidade
+name: Validacao E2E
+
+on:
+  # O GitHub só aceita workflow_dispatch de workflow já registrado; enquanto a main
+  # não tem os workflows, o 1º push na homolog registra este e já roda o E2E.
+  push:
+    branches: [homolog]
+    paths:
+      - '.github/workflows/e2e.yml'
+      - 'tests/postman/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente GitHub que contem URLs e credenciais
+        required: true
+        type: choice
+        options: [homolog, production]
+        default: homolog
+      run_load_test:
+        description: Executar smoke de carga k6 apos o fluxo funcional
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: e2e-${{ inputs.environment || 'homolog' }}
+  cancel-in-progress: false
+
+jobs:
+  functional:
+    name: Postman/Newman (${{ inputs.environment || 'homolog' }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'homolog' }}
+    permissions:
+      contents: read
+    env:
+      BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
+      API_GATEWAY_BASE_URL: ${{ vars.API_GATEWAY_BASE_URL }}
+      AUTH_BASE_URL: ${{ vars.AUTH_BASE_URL || vars.API_GATEWAY_BASE_URL }}
+      ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL || 'admin@oficina.local' }}
+      ADMIN_PASSWORD: ${{ secrets.APP_ADMIN_PASSWORD }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate endpoint configuration
+        run: |
+          set -euo pipefail
+          for name in BACKEND_BASE_URL API_GATEWAY_BASE_URL AUTH_BASE_URL ADMIN_PASSWORD EKS_CLUSTER_NAME AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name ausente no GitHub Environment '${{ inputs.environment || 'homolog' }}'."
+              exit 1
+            fi
+          done
+      - name: Configure AWS Academy credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.34.0'
+      - name: Resolve LoadBalancers of Diagnostico e Reparo and Orcamento e Pagamento
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+          lb() {
+            kubectl get svc "$1" -n "$2" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+          }
+          dr_host="$(lb oficina-diagnostico-reparo 'oficina-diagnostico-reparo-${{ inputs.environment || 'homolog' }}')"
+          op_host="$(lb oficina-orcamento-pagamento 'oficina-orcamento-pagamento-${{ inputs.environment || 'homolog' }}')"
+          if [ -z "$dr_host" ] || [ -z "$op_host" ]; then
+            echo "::error::LoadBalancer sem hostname. Faça o deploy dos 2 serviços antes do E2E."
+            exit 1
+          fi
+          echo "DIAGNOSTICO_REPARO_BASE_URL=http://$dr_host" >> "$GITHUB_ENV"
+          echo "ORCAMENTO_PAGAMENTO_BASE_URL=http://$op_host" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Newman runner
+        run: npm install --global newman@6.2.1 --ignore-scripts
+      - name: Warm up Lambdas (login and authorizer)
+        run: |
+          # Cold start da Lambda Java com o agente New Relic leva de 5 a 10 s; o Newman tem 15 s por requisição.
+          # CPF inválido e token falso não geram token nem consultam cliente: só sobem as JVMs.
+          set -uo pipefail
+          warm() {
+            local name="$1"; shift
+            local result code seconds
+            for attempt in 1 2 3 4 5 6; do
+              result="$(curl -s -o /dev/null -m 30 -w '%{http_code} %{time_total}' "$@" || true)"
+              read -r code seconds <<< "$result"
+              echo "$name, tentativa $attempt: HTTP ${code:-000} em ${seconds:-30} s"
+              if [[ "${code:-000}" =~ ^4 ]] && awk -v s="${seconds:-30}" 'BEGIN { exit !(s < 3) }'; then
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::warning::$name não respondeu rápido em 6 tentativas; o API Gateway ou a Lambda podem estar instáveis."
+          }
+          warm login -X POST "$AUTH_BASE_URL/auth/cpf" -H 'Content-Type: application/json' -d '{"cpf":"00000000000"}'
+          warm authorizer -H 'Authorization: Bearer aquecimento' "$API_GATEWAY_BASE_URL/consulta/ordens-servico/OS-000000-000000/status"
+      - name: Run functional and security collection
+        working-directory: tests/postman
+        run: |
+          set -euo pipefail
+          newman run oficina-weeks4-5.postman_collection.json \
+            --env-var "backendBaseUrl=$BACKEND_BASE_URL" \
+            --env-var "apiGatewayBaseUrl=$API_GATEWAY_BASE_URL" \
+            --env-var "authBaseUrl=$AUTH_BASE_URL" \
+            --env-var "diagnosticoReparoBaseUrl=$DIAGNOSTICO_REPARO_BASE_URL" \
+            --env-var "orcamentoPagamentoBaseUrl=$ORCAMENTO_PAGAMENTO_BASE_URL" \
+            --env-var "adminEmail=$ADMIN_EMAIL" \
+            --env-var "adminPassword=$ADMIN_PASSWORD" \
+            --reporters cli,junit \
+            --reporter-junit-export newman-results.xml \
+            --timeout-request 15000 \
+            --bail
+      - name: Upload sanitized test result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-${{ inputs.environment || 'homolog' }}-${{ github.run_id }}
+          path: tests/postman/newman-results.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  load:
+    name: k6 smoke load (${{ inputs.environment || 'homolog' }})
+    needs: functional
+    if: inputs.run_load_test
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'homolog' }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - name: Run bounded health load
+        env:
+          BACKEND_BASE_URL: ${{ vars.BACKEND_BASE_URL }}
+          VUS: '5'
+          RAMP_UP: 15s
+          HOLD: 30s
+        run: k6 run tests/k6/smoke-load.js
