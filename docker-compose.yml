@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: oficina-db
+    environment:
+      POSTGRES_DB: oficina
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina
+    ports:
+      - "5432:5432"
+    volumes:
+      - oficina-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oficina -d oficina"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oficina-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/oficina
+      DB_USER: oficina
+      DB_PASSWORD: oficina
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-at-least-32-chars-long-please}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@oficina.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      NOTIFICACAO_TIPO: ${NOTIFICACAO_TIPO:-log}
+      NOTIFICACAO_REMETENTE: ${NOTIFICACAO_REMETENTE:-nao-responder@oficina.local}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+    ports:
+      - "8080:8080"
+
+  adminer:
+    image: adminer:4
+    container_name: oficina-adminer
+    ports:
+      - "8081:8080"
+    depends_on:
+      - db
+
+volumes:
+  oficina-db-data:

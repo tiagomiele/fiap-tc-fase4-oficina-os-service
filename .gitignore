@@ -1,0 +1,54 @@
+target/
+__pycache__/
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Dotenv
+.env
+.env.local
+
+# Dependency-Check cache
+dependency-check-data/
+
+# Coverage
+coverage/
+
+# Misc
+*.bak
+*.swp
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Chaves e contexto locais
+*.pem
+*.key
+*.clixml
+environment-context.ps1

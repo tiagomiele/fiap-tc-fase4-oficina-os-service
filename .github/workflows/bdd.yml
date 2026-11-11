@@ -1,0 +1,58 @@
+# BDD da Saga: sobe OS, Diagnóstico e Reparo e Orçamento e Pagamento no docker compose
+# (2 Postgres + LocalStack) e roda os cenários Cucumber de bdd/.
+name: BDD Saga
+
+on:
+  pull_request:
+    branches: [homolog, main]
+  push:
+    branches: [homolog, main]
+  workflow_dispatch:
+
+concurrency:
+  group: bdd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bdd:
+    name: BDD (Cucumber)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fiap-tc-fase4-oficina-os-service
+      - name: Checkout Diagnóstico e Reparo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fiap-tc-fase4-oficina-diagnostico-reparo-service
+          ref: ${{ github.base_ref || github.ref_name }}
+          path: fiap-tc-fase4-oficina-diagnostico-reparo-service
+      - name: Checkout Orçamento e Pagamento
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/fiap-tc-fase4-oficina-orcamento-pagamento-service
+          ref: ${{ github.base_ref || github.ref_name }}
+          path: fiap-tc-fase4-oficina-orcamento-pagamento-service
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: fiap-tc-fase4-oficina-os-service/bdd/pom.xml
+      - name: Run BDD
+        working-directory: fiap-tc-fase4-oficina-os-service/bdd
+        run: ./run-bdd.sh
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdd-report
+          path: |
+            fiap-tc-fase4-oficina-os-service/bdd/target/cucumber-report.html
+            fiap-tc-fase4-oficina-os-service/bdd/target/cucumber.json
+            fiap-tc-fase4-oficina-os-service/bdd/target/docker-compose.log
+          if-no-files-found: ignore

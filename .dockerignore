@@ -1,0 +1,11 @@
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+*.log
+README.md
+docs-fase1/
+docs-fase2/
+docs-fase3/
+.github/

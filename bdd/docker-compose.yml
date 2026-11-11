@@ -1,0 +1,85 @@
+# BDD da Saga: os 3 serviços + 2 Postgres + LocalStack (SQS e DynamoDB).
+# Os repositórios dos outros serviços ficam ao lado deste (../../oficina-*-service).
+x-aws: &aws
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  MENSAGERIA_TIPO: sqs
+  AWS_SQS_ENDPOINT: http://localstack:4566
+  SQS_OS_EVENTOS_URL: http://localstack:4566/000000000000/os-eventos
+  SQS_DIAGNOSTICO_REPARO_COMANDOS_URL: http://localstack:4566/000000000000/diagnostico-reparo-comandos
+  SQS_ORCAMENTO_PAGAMENTO_COMANDOS_URL: http://localstack:4566/000000000000/orcamento-pagamento-comandos
+  SQS_WAIT_TIME_SECONDS: "1"
+  SQS_POLL_DELAY_MS: "300"
+  JWT_SECRET: bdd-secret-bdd-secret-bdd-secret-bdd-secret
+  SERVERLESS_JWT_PUBLIC_KEY: ${SERVERLESS_JWT_PUBLIC_KEY:-}
+
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs,dynamodb
+    volumes:
+      - ./localstack/init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal dynamodb describe-table --table-name oficina-bdd-execucoes >/dev/null 2>&1"]
+      interval: 5s
+      retries: 60
+
+  postgres-os:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: oficina
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oficina"]
+      interval: 3s
+      retries: 30
+
+  postgres-orcamento:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orcamento_pagamento
+      POSTGRES_USER: oficina
+      POSTGRES_PASSWORD: oficina
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oficina"]
+      interval: 3s
+      retries: 30
+
+  os-service:
+    build: ..
+    ports: ["8081:8080"]
+    environment:
+      <<: *aws
+      DB_URL: jdbc:postgresql://postgres-os:5432/oficina
+      DB_USER: oficina
+      DB_PASSWORD: oficina
+    depends_on:
+      localstack: { condition: service_healthy }
+      postgres-os: { condition: service_healthy }
+
+  diagnostico-reparo-service:
+    build: ../../fiap-tc-fase4-oficina-diagnostico-reparo-service
+    ports: ["8082:8080"]
+    environment:
+      <<: *aws
+      PERSISTENCIA_TIPO: dynamodb
+      AWS_DYNAMODB_ENDPOINT: http://localstack:4566
+      DYNAMODB_TABLE_NAME: oficina-bdd-execucoes
+    depends_on:
+      localstack: { condition: service_healthy }
+
+  orcamento-pagamento-service:
+    build: ../../fiap-tc-fase4-oficina-orcamento-pagamento-service
+    ports: ["8083:8080"]
+    environment:
+      <<: *aws
+      DB_URL: jdbc:postgresql://postgres-orcamento:5432/orcamento_pagamento
+      DB_USER: oficina
+      DB_PASSWORD: oficina
+      PAYMENT_PROVIDER: fake
+    depends_on:
+      localstack: { condition: service_healthy }
+      postgres-orcamento: { condition: service_healthy }

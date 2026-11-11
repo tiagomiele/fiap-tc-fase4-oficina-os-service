@@ -1,0 +1,9 @@
+# Regras padrão do Gitleaks + exceções para falsos positivos conhecidos.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Exemplos em documentação histórica e checksum público do agente New Relic"
+regexTarget = "line"
+paths = ['''^docs-fase[0-9]/''']
+regexes = ['''NEW_RELIC_AGENT_SHA256=[0-9a-f]{64}''']
