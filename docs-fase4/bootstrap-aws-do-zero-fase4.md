@@ -461,7 +461,7 @@ Esperado: EKS sem mudanças destrutivas, add-ons saudáveis, Synthetic `oficina-
 
 ## 15. Validar a saúde técnica
 
-Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; troque `homolog` por `production` na produção):
+Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; com `$Amb = 'production'`, os nomes terminam em `-production`):
 
 | Serviço | Namespace | Deployment / Service |
 |---|---|---|
@@ -470,20 +470,26 @@ Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; troqu
 | Orçamento e Pagamento | `oficina-orcamento-pagamento-homolog` | `oficina-orcamento-pagamento` |
 
 ```powershell
-. C:\fiap-secrets\oficina-homolog\environment-context.ps1
+$Amb = 'homolog'   # ou 'production'
+aws eks update-kubeconfig --region us-west-2 --name "oficina-$Amb"
+kubectl config current-context    # tem que terminar em cluster/oficina-<ambiente>
+. "C:\fiap-secrets\oficina-$Amb\environment-context.ps1"
 function Get-LbUrl($svc, $ns) { 'http://' + (kubectl get svc $svc -n $ns -o jsonpath='{.status.loadBalancer.ingress[0].hostname}') }
-$OS = Get-LbUrl 'oficina-app' 'oficina-homolog'
-$DR = Get-LbUrl 'oficina-diagnostico-reparo' 'oficina-diagnostico-reparo-homolog'
-$OP = Get-LbUrl 'oficina-orcamento-pagamento' 'oficina-orcamento-pagamento-homolog'
-$GW = gh variable get API_GATEWAY_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env homolog
+$OS = Get-LbUrl 'oficina-app' "oficina-$Amb"
+$DR = Get-LbUrl 'oficina-diagnostico-reparo' "oficina-diagnostico-reparo-$Amb"
+$OP = Get-LbUrl 'oficina-orcamento-pagamento' "oficina-orcamento-pagamento-$Amb"
+$GW = gh variable get API_GATEWAY_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env $Amb
 $OS; $DR; $OP; $GW
+if ($OS -eq 'http://' -or $DR -eq 'http://' -or $OP -eq 'http://') { throw "URL vazia: confira o cluster com kubectl config current-context" }
 foreach ($u in $OS, $DR, $OP) { Invoke-RestMethod "$u/actuator/health" }
 
-kubectl get deployment,service,hpa,pdb -n oficina-homolog
-kubectl rollout status deployment/oficina-app -n oficina-homolog --timeout=120s
+kubectl get deployment,service,hpa,pdb -n "oficina-$Amb"
+kubectl rollout status deployment/oficina-app -n "oficina-$Amb" --timeout=120s
 ```
 
-Esperado: os 3 health `UP`; rollout concluído.
+Esperado: `current-context` terminando em `cluster/oficina-<ambiente>`; 4 URLs preenchidas; os 3 health `UP`; rollout concluído.
+
+> A seção 16 usa `$OS`, `$DR`, `$OP` e `$GW`. Rode a seção 15 e a 16.1 na mesma janela do PowerShell antes da 16.2; em uma janela nova, rode as duas de novo. Depois de subir ou mexer em outro ambiente, o `kubectl` fica apontando para o último cluster usado: por isso a seção começa pelo `update-kubeconfig`.
 
 Swagger (pelos LoadBalancers, não pelo API Gateway):
 
@@ -498,7 +504,7 @@ Start-Process "$OP/swagger-ui.html"
 ### 16.1 Login do funcionário
 
 ```powershell
-$s = Import-Clixml C:\fiap-secrets\oficina-homolog\backend-admin-password.clixml
+$s = Import-Clixml "C:\fiap-secrets\oficina-$Amb\backend-admin-password.clixml"
 $AdminPwd = if ($s -is [securestring]) { [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) } else { [string]$s }
 function J($o) { ,[Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Depth 6)) }   # a vírgula impede o PS 5.1 de desmontar o byte[]
 $CT = 'application/json; charset=utf-8'
@@ -1322,6 +1328,7 @@ Não avance se:
 | Fila sempre com **Mensagens disponíveis** = `0` | comportamento normal: o consumidor processa e apaga a mensagem em segundos | 16.5 (onde ver o histórico) e 16.6 (cenário com a mensagem parada) |
 | `namespaces "oficina-diagnostico-reparo" not found` | namespace sem o sufixo do ambiente | use `oficina-diagnostico-reparo-homolog` (tabela da seção 15) |
 | `namespaces "oficina-production" not found` | `kubectl` apontando para o cluster de homologação | `aws eks update-kubeconfig --region us-west-2 --name oficina-production` |
+| `namespaces "oficina-homolog" not found` ou URL `http://` vazia | `kubectl` apontando para o cluster de produção | `aws eks update-kubeconfig --region us-west-2 --name oficina-homolog` |
 | `pg-tunnel` em `Pending`, DBeaver com senha recusada ou `Connection refused` | nodes cheios, senha antiga ou conexão de outro ambiente | [Database Infra, seção 6.3](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra#63-ver-os-dados-do-rds-dbeaver-ou-psql) |
 
 Tempos típicos: EKS 20–40 min; cada RDS 10–25 min; DynamoDB 2–5 min; Auth 5–15 min; cada CD 8–15 min; Kubernetes (2º run) 5–20 min. Total: 2h30 a 3h30.
