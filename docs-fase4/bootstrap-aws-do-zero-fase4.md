@@ -933,14 +933,24 @@ O artefato fica disponível por 90 dias. Se ele tiver expirado, rode o BDD de no
 
 ### 20.1 Ligar o Mercado Pago
 
+Rode na pasta do clone do OS Service (a seção 5 usa `C:\fiap\fase4` como exemplo; use a sua). O bloco não depende de variáveis de outras seções, então funciona numa janela nova do PowerShell. Antes, copie o bloco `[default]` do AWS Details: o script renova as credenciais AWS e lê esse bloco da área de transferência (sem ele, pede as chaves uma por uma).
+
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
-.\scripts\configure-environment.ps1 -Environment homolog -ConfigureMercadoPago   # na 1ª vez pede Access Token, Public Key e assinatura do webhook
-Invoke-Workflow -Repo fiap-tc-fase4-oficina-orcamento-pagamento-service -Workflow cd.yml
+.\scripts\configure-environment.ps1 -Environment homolog -ConfigureMercadoPago -UseAwsAcademyDisposableProductionProfile   # na 1ª vez pede Access Token, Public Key e assinatura do webhook
+
+$Repo = 'tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service'
+gh workflow run cd.yml --repo $Repo --ref homolog
+Start-Sleep 10
+$id = gh run list --repo $Repo --workflow cd.yml --branch homolog --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId'
+Write-Host "Run: https://github.com/$Repo/actions/runs/$id"
+gh run watch $id --repo $Repo --exit-status
+if ($LASTEXITCODE -ne 0) { throw "CD do Orçamento e Pagamento falhou. Pare e analise o log." }
+
+aws eks update-kubeconfig --region us-west-2 --name oficina-homolog
 kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-homolog -o jsonpath='{.data.PAYMENT_PROVIDER} {.data.MERCADOPAGO_SANDBOX} {.data.MERCADOPAGO_NOTIFICATION_URL}'
 ```
 
-Esperado: `mercadopago true <GW>/webhooks/mercadopago`. O `-ConfigureMercadoPago` grava os 3 valores em `C:\fiap-secrets\shared\mercadopago-*.clixml` e reaproveita nas próximas vezes. Se você renovar uma credencial no painel, apague só o arquivo dela, por exemplo `Remove-Item C:\fiap-secrets\shared\mercadopago-access-token.clixml`, e rode os 2 comandos de novo.
+Esperado: `mercadopago true <GW>/webhooks/mercadopago`. Se aparecer `fake`, o CD não rodou depois do configure. O `-UseAwsAcademyDisposableProductionProfile` mantém o RDS de produção destruível quando a produção também está no ar; sem produção, ele não muda nada. O `-ConfigureMercadoPago` grava os 3 valores em `C:\fiap-secrets\shared\mercadopago-*.clixml` e reaproveita nas próximas vezes. Se você renovar uma credencial no painel, apague só o arquivo dela, por exemplo `Remove-Item C:\fiap-secrets\shared\mercadopago-access-token.clixml`, e rode o bloco de novo.
 
 ### 20.2 Cadastrar o webhook no painel
 
@@ -1076,15 +1086,23 @@ kubectl logs -n oficina-orcamento-pagamento-homolog deploy/oficina-orcamento-pag
 
 ### 20.6 Voltar ao `fake` (obrigatório ao terminar)
 
-O `PAYMENT_PROVIDER` fica gravado no GitHub Environment e sobrevive ao destroy. O `configure-environment.ps1` sem `-ConfigureMercadoPago` não volta ao `fake` sozinho.
+O `PAYMENT_PROVIDER` fica gravado no GitHub Environment e sobrevive ao destroy. O `configure-environment.ps1` sem `-ConfigureMercadoPago` não volta ao `fake` sozinho. O bloco não depende de variáveis de outras seções, então funciona numa janela nova do PowerShell.
 
 ```powershell
-gh variable set PAYMENT_PROVIDER --repo tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service --env homolog --body fake
-Invoke-Workflow -Repo fiap-tc-fase4-oficina-orcamento-pagamento-service -Workflow cd.yml
+$Repo = 'tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service'
+gh variable set PAYMENT_PROVIDER --repo $Repo --env homolog --body fake
+gh workflow run cd.yml --repo $Repo --ref homolog
+Start-Sleep 10
+$id = gh run list --repo $Repo --workflow cd.yml --branch homolog --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId'
+Write-Host "Run: https://github.com/$Repo/actions/runs/$id"
+gh run watch $id --repo $Repo --exit-status
+if ($LASTEXITCODE -ne 0) { throw "CD do Orçamento e Pagamento falhou. Pare e analise o log." }
+
+aws eks update-kubeconfig --region us-west-2 --name oficina-homolog
 kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-homolog -o jsonpath='{.data.PAYMENT_PROVIDER}'   # fake
 ```
 
-Com o `fake` de volta, o E2E do 17 volta a passar. Para validar o Mercado Pago de novo, repita a partir do 20.1.
+Esperado: `fake`. Se aparecer `mercadopago`, o CD não rodou depois do `gh variable set`. Com o `fake` de volta, o E2E do 17 volta a passar. Para validar o Mercado Pago de novo, repita a partir do 20.1.
 
 ## 21. Sessão do Lab expirou ou foi reiniciada (`ExpiredToken`, `voc-cancel-cred`)
 
