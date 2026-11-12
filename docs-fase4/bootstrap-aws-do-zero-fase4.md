@@ -1104,6 +1104,51 @@ kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-
 
 Esperado: `fake`. Se aparecer `mercadopago`, o CD não rodou depois do `gh variable set`. Com o `fake` de volta, o E2E do 17 volta a passar. Para validar o Mercado Pago de novo, repita a partir do 20.1.
 
+### 20.7 Mercado Pago em produção (opcional)
+
+Mesmas credenciais **sandbox** da homologação (reaproveitadas de `C:\fiap-secrets\shared`). A configuração é por ambiente: ligar na `homolog` não liga na `production`. Faça um ambiente por vez, porque o painel do Mercado Pago aceita uma URL de webhook por vez. Antes, copie o bloco `[default]` do AWS Details.
+
+**Ligar:**
+
+```powershell
+.\scripts\configure-environment.ps1 -Environment production -ConfigureMercadoPago -UseAwsAcademyDisposableProductionProfile
+
+$Repo = 'tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service'
+gh workflow run cd.yml --repo $Repo --ref main
+Start-Sleep 10
+$id = gh run list --repo $Repo --workflow cd.yml --branch main --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId'
+Write-Host "Run: https://github.com/$Repo/actions/runs/$id"
+gh run watch $id --repo $Repo --exit-status
+if ($LASTEXITCODE -ne 0) { throw "CD do Orçamento e Pagamento falhou. Pare e analise o log." }
+
+aws eks update-kubeconfig --region us-west-2 --name oficina-production
+kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-production -o jsonpath='{.data.PAYMENT_PROVIDER} {.data.MERCADOPAGO_SANDBOX} {.data.MERCADOPAGO_NOTIFICATION_URL}'
+```
+
+Esperado: `mercadopago true <GW de produção>/webhooks/mercadopago`.
+
+**Webhook:** no painel (20.2), troque a URL para a `MERCADOPAGO_NOTIFICATION_URL` mostrada acima.
+
+**Pagar:**
+
+```powershell
+.\scripts\pagamento-mercadopago.ps1                      # cria a OS até AGUARDANDO_PAGAMENTO e mostra o link
+.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...     # depois de pagar com o titular APRO; esperado: PAGA
+```
+
+**Voltar ao `fake` (obrigatório ao terminar):**
+
+```powershell
+gh variable set PAYMENT_PROVIDER --repo $Repo --env production --body fake
+gh workflow run cd.yml --repo $Repo --ref main
+Start-Sleep 10
+$id = gh run list --repo $Repo --workflow cd.yml --branch main --event workflow_dispatch --limit 1 --json databaseId -q '.[0].databaseId'
+gh run watch $id --repo $Repo --exit-status
+kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-production -o jsonpath='{.data.PAYMENT_PROVIDER}'   # fake
+```
+
+Com o Mercado Pago ligado, o E2E `environment=production` falha (o `/pagamentos/{n}/simular` só existe no `fake`). Volte ao `fake` antes de rodar o 17.1. Se for testar a homologação depois, volte a URL do webhook no painel para o GW da `homolog`.
+
 ## 21. Sessão do Lab expirou ou foi reiniciada (`ExpiredToken`, `voc-cancel-cred`)
 
 A infraestrutura (EKS, RDS, DynamoDB, SQS) e os states no HCP **continuam existindo**. Não recomece do zero: renove as credenciais, confira os nós e repita **só** o passo que falhou.
