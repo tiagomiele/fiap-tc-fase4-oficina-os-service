@@ -34,4 +34,4 @@ As pastas abaixo reúnem os diagramas de arquitetura, o contrato da Saga, os con
 Os guias abaixo mostram como configurar, implantar e destruir os seis projetos na AWS.
 
 - [Bootstrap da solução na AWS](docs/bootstrap-aws-do-zero-fase4.md)
-- [Bootstrap de uma única vez: provisionar e destruir um ambiente com um único script](README-bootstrap-unica-vez.md)
+- [Bootstrap automatizado: subir, retomar depois do Start Lab, validar, Mercado Pago e destruir com scripts e menus](docs-fase4/bootstrap-automatizado-fase4.md)

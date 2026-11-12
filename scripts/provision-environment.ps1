@@ -2,7 +2,7 @@
 param(
     # Vazio: o script pergunta qual ambiente subir.
     [string]$Environment,
-    [ValidateSet('configure', 'kubernetes', 'db-os', 'db-orcamento-pagamento', 'db-diagnostico-reparo', 'configure-bancos', 'labrole', 'auth', 'configure-auth', 'cd-os', 'cd-diagnostico-reparo', 'cd-orcamento-pagamento', 'auth-rotas', 'kubernetes-synthetic', 'configure-final', 'health', 'e2e')]
+    [ValidateSet('configure', 'kubernetes', 'db-os', 'db-orcamento-pagamento', 'db-diagnostico-reparo', 'configure-bancos', 'nos', 'labrole', 'auth', 'configure-auth', 'cd-os', 'cd-diagnostico-reparo', 'cd-orcamento-pagamento', 'auth-rotas', 'kubernetes-synthetic', 'configure-final', 'health', 'e2e')]
     [string]$StartAt = 'configure',
     [switch]$RunE2E,
     [switch]$RunLoadTest,
@@ -16,6 +16,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'oficina-lab.ps1')
 
 # Mesma ordem do Bootstrap (seções 7.2 a 15): cada etapa depende dos outputs da anterior.
 $ProvisionSteps = @(
@@ -25,6 +26,7 @@ $ProvisionSteps = @(
     @{ Name = 'db-orcamento-pagamento'; Kind = 'workflow';  Repository = 'fiap-tc-fase4-oficina-database-infra';              Workflow = 'orcamento-pagamento.yml' }
     @{ Name = 'db-diagnostico-reparo';  Kind = 'workflow';  Repository = 'fiap-tc-fase4-oficina-database-infra';              Workflow = 'diagnostico-reparo.yml' }
     @{ Name = 'configure-bancos';       Kind = 'configure'; AssertDeployGates = $true }
+    @{ Name = 'nos';                    Kind = 'nodes' }
     @{ Name = 'labrole';                Kind = 'labrole' }
     @{ Name = 'auth';                   Kind = 'workflow';  Repository = 'fiap-tc-fase4-oficina-auth-serverless';             Workflow = 'terraform-deploy.yml' }
     @{ Name = 'configure-auth';         Kind = 'configure' }
@@ -103,6 +105,31 @@ function Get-ProvisionStepsFrom {
         throw "Etapa desconhecida: $StartAt"
     }
     @($Steps[$index..($Steps.Count - 1)] | Where-Object { $IncludeOptional -or -not $_.ContainsKey('Optional') -or $_.Name -eq $StartAt })
+}
+
+function Get-ProvisionPlan {
+    param(
+        [Parameter(Mandatory)][object[]]$Steps,
+        [Parameter(Mandatory)][string]$StartAt,
+        [bool]$IncludeOptional = $false
+    )
+
+    $plan = @(Get-ProvisionStepsFrom -Steps $Steps -StartAt $StartAt -IncludeOptional $IncludeOptional)
+    $names = @($Steps | ForEach-Object { $_.Name })
+    # Ao retomar, renova primeiro as credenciais do Lab no computador, no HCP e nos GitHub Environments.
+    if ($plan[0].Kind -eq 'configure') {
+        $head = @($plan[0])
+        $rest = @($plan | Select-Object -Skip 1)
+    }
+    else {
+        $head = @(@{ Name = 'credenciais'; Kind = 'configure' })
+        $rest = $plan
+    }
+    # Retomando depois dos nós: um Start Lab no meio pode ter derrubado os nós do EKS.
+    if ([Array]::IndexOf($names, $StartAt) -gt [Array]::IndexOf($names, 'nos')) {
+        $head += @{ Name = 'nos'; Kind = 'nodes' }
+    }
+    @($head + $rest)
 }
 
 function Get-WorkflowRef {
@@ -384,6 +411,7 @@ function Invoke-ProvisionStep {
     switch ($Step.Kind) {
         'configure' { Invoke-ConfigureEnvironment -Step $Step -EnvironmentName $EnvironmentName }
         'workflow' { Invoke-ProvisionWorkflow -Step $Step -EnvironmentName $EnvironmentName }
+        'nodes' { Repair-OficinaNodes -Ambiente $EnvironmentName -Region $Region }
         'labrole' { Invoke-LabRoleTest -EnvironmentName $EnvironmentName }
         'health' { Invoke-HealthCheck -EnvironmentName $EnvironmentName }
         default { throw "Tipo de etapa desconhecido: $($Step.Kind)" }
@@ -405,22 +433,23 @@ $script:RunLinks = [Collections.Generic.List[string]]::new()
 $script:ServiceUrls = [Collections.Generic.List[string]]::new()
 
 $Environment = Resolve-ProvisionEnvironment -Value $Environment
-$steps = @(Get-ProvisionStepsFrom -Steps $ProvisionSteps -StartAt $StartAt -IncludeOptional ([bool]$RunE2E))
-if ($steps[0].Kind -ne 'configure') {
-    # Ao retomar, renova primeiro as credenciais do Lab no computador, no HCP e nos GitHub Environments.
-    $steps = @(@{ Name = 'credenciais'; Kind = 'configure' }) + $steps
-}
+$steps = @(Get-ProvisionPlan -Steps $ProvisionSteps -StartAt $StartAt -IncludeOptional ([bool]$RunE2E))
+
+# A 1ª etapa lê o [default] da área de transferência: confere antes que ele é de uma sessão válida do Lab.
+Write-Host ''
+Write-Host '== credenciais do Lab'
+Wait-OficinaLabCredentials -Region $Region | Out-Null
 
 Write-Host ''
 Write-Host "Subida de '$Environment' (branch $(Get-WorkflowRef -EnvironmentName $Environment)), região $Region."
 Write-Host "Etapas: $(($steps | ForEach-Object { $_.Name }) -join ' -> ')"
-Write-Host 'Leva de 1h30 a 2h. Mantenha o Lab ativo e o bloco [default] copiado (a 1ª etapa lê da área de transferência).'
+Write-Host 'Leva de 1h30 a 2h. Mantenha o Lab ativo; não copie outra coisa até a 1ª etapa terminar (ela lê o [default] da área de transferência).'
 if ($Environment -eq 'production') {
     Write-Host 'Produção usa o perfil descartável do AWS Academy (sem Multi-AZ, sem deletion protection, sem snapshot final).'
 }
-$answer = Read-Host "Digite '$Environment' para confirmar"
-if ($answer -ne $Environment) {
-    throw 'Confirmação diferente do nome do ambiente. Nada foi alterado.'
+$answer = Read-Host "Confirma a subida de '$Environment'? [S/N]"
+if ($answer.Trim().ToLowerInvariant() -notin @('s', 'sim')) {
+    throw 'Subida cancelada. Nada foi alterado.'
 }
 
 $started = Get-Date
@@ -444,4 +473,6 @@ Write-Host "Ambiente '$Environment' no ar em $([int]((Get-Date) - $started).Tota
 foreach ($line in $script:ServiceUrls) { Write-Host "  $line" }
 Write-Host 'Runs (evidência da ordem de subida):'
 foreach ($line in $script:RunLinks) { Write-Host "  $line" }
+Write-Host "Próximo passo (validar): .\scripts\validar-ambiente.ps1 -Environment $Environment"
+Write-Host "Depois de um Start Lab: .\scripts\lab-reiniciado.ps1 -Environment $Environment"
 Write-Host "Para destruir: .\scripts\destroy-environment.ps1 -Environment $Environment"

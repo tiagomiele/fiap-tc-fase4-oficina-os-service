@@ -232,14 +232,18 @@ feature → Pull Request → homolog → Pull Request → main
 
 O passo a passo completo, para quem nunca viu o projeto, está no **[Bootstrap da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)**: preparação, homologação, produção, validação da Saga, Mercado Pago e, na seção 26, a **destruição da infraestrutura para economizar créditos** (`scripts/destroy-environment.ps1`).
 
-Para subir um ambiente inteiro com um único comando, use o **[Bootstrap de uma única vez](README-bootstrap-unica-vez.md)** (`scripts/provision-environment.ps1`).
+Para operar um ambiente só com scripts e menus (subir, retomar depois do Start Lab, validar, Mercado Pago e destruir), use o **[Bootstrap automatizado](docs-fase4/bootstrap-automatizado-fase4.md)**.
 
 | Script | Para quê |
 |---|---|
 | `scripts/configure-environment.ps1` | cria e sincroniza workspaces HCP, variáveis e secrets do GitHub |
 | `scripts/provision-environment.ps1` | sobe um ambiente inteiro (homolog ou production) de uma vez |
-| `scripts/destroy-environment.ps1` | destrói um ambiente na ordem certa |
-| `scripts/pagamento-mercadopago.ps1` | teste manual do Mercado Pago sandbox em produção |
+| `scripts/lab-reiniciado.ps1` | depois do Start Lab: renova as credenciais, recupera os nós do EKS e confere os 3 serviços |
+| `scripts/validar-ambiente.ps1` | valida o ambiente contra as especificações (health, E2E, k6, BDD e DLQs) e mostra as evidências |
+| `scripts/provedor-pagamento.ps1` | liga o Mercado Pago ou volta ao `fake` e aplica no ambiente |
+| `scripts/pagamento-mercadopago.ps1` | teste manual do Mercado Pago sandbox, em homolog ou production |
+| `scripts/destroy-environment.ps1` | renova as credenciais e destrói um ambiente na ordem certa |
+| `scripts/oficina-lab.ps1` | funções comuns aos scripts (menu, credenciais, nós, health e workflows) |
 
 ## 12. Documentação e evidências
 

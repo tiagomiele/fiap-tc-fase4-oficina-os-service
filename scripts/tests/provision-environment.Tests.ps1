@@ -37,7 +37,7 @@ foreach ($name in $stepNames) {
     if ($stepParameter.Extent.Text -notmatch "'$name'") { throw "StartAt must accept step '$name'." }
 }
 
-$expectedOrder = 'configure,kubernetes,db-os,db-orcamento-pagamento,db-diagnostico-reparo,configure-bancos,labrole,auth,configure-auth,cd-os,cd-diagnostico-reparo,cd-orcamento-pagamento,auth-rotas,kubernetes-synthetic,configure-final,health,e2e'
+$expectedOrder = 'configure,kubernetes,db-os,db-orcamento-pagamento,db-diagnostico-reparo,configure-bancos,nos,labrole,auth,configure-auth,cd-os,cd-diagnostico-reparo,cd-orcamento-pagamento,auth-rotas,kubernetes-synthetic,configure-final,health,e2e'
 if (($stepNames -join ',') -ne $expectedOrder) {
     throw "Provision order changed: $($stepNames -join ',')"
 }
@@ -51,6 +51,18 @@ if ((@(Get-ProvisionStepsFrom -Steps $ProvisionSteps -StartAt health -IncludeOpt
 if ((@(Get-ProvisionStepsFrom -Steps $ProvisionSteps -StartAt e2e | ForEach-Object { $_.Name }) -join ',') -ne 'e2e') {
     throw 'StartAt e2e must run the E2E.'
 }
+function Get-PlanNames([string]$StartAt, [bool]$E2E = $false) {
+    @(Get-ProvisionPlan -Steps $ProvisionSteps -StartAt $StartAt -IncludeOptional $E2E | ForEach-Object { $_.Name }) -join ','
+}
+if ((Get-PlanNames configure) -ne (($stepNames | Where-Object { $_ -ne 'e2e' }) -join ',')) { throw 'A fresh run must follow the provision order.' }
+if ((Get-PlanNames db-os) -ne 'credenciais,db-os,db-orcamento-pagamento,db-diagnostico-reparo,configure-bancos,nos,labrole,auth,configure-auth,cd-os,cd-diagnostico-reparo,cd-orcamento-pagamento,auth-rotas,kubernetes-synthetic,configure-final,health') {
+    throw "Resume before the nodes step must only renew credentials: $(Get-PlanNames db-os)"
+}
+if ((Get-PlanNames cd-os) -notlike 'credenciais,nos,cd-os,*') { throw "Resume after the nodes step must check the nodes: $(Get-PlanNames cd-os)" }
+if ((Get-PlanNames configure-auth) -notlike 'configure-auth,nos,cd-os,*') { throw "A configure resume must check the nodes after renewing: $(Get-PlanNames configure-auth)" }
+if ((Get-PlanNames nos) -notlike 'credenciais,nos,labrole,*') { throw "Resume at nos must not repeat it: $(Get-PlanNames nos)" }
+if ((Get-PlanNames health $true) -ne 'credenciais,nos,health,e2e') { throw "Unexpected health resume: $(Get-PlanNames health $true)" }
+
 try {
     Get-ProvisionStepsFrom -Steps $ProvisionSteps -StartAt unknown | Out-Null
     throw 'Unknown step must be rejected.'
