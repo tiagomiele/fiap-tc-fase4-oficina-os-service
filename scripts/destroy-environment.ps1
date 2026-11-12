@@ -1,8 +1,9 @@
 ﻿[CmdletBinding()]
 param(
     # Produção só com o perfil descartável do AWS Academy: o perfil endurecido (deletion_protection) é recusado.
+    # Vazio: o script pergunta qual ambiente.
     [ValidateSet('homolog', 'production')]
-    [string]$Environment = 'homolog',
+    [string]$Environment,
     [ValidateSet('auth', 'namespaces', 'newrelic', 'db-diagnostico-reparo', 'db-orcamento-pagamento', 'db-os', 'lambda-enis', 'kubernetes', 'verificacao')]
     [string]$StartAt = 'auth',
     [string]$TerraformOrganization = 'oficina-fiap-soat-fase-2',
@@ -11,11 +12,14 @@ param(
     [string]$SecretsRoot,
     [int]$PollSeconds = 20,
     [int]$RunTimeoutMinutes = 60,
-    [int]$EniTimeoutMinutes = 45
+    [int]$EniTimeoutMinutes = 45,
+    # Não renova as credenciais (use só se acabou de rodar o lab-reiniciado.ps1 ou o configure-environment.ps1).
+    [switch]$SkipCredentials
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'oficina-lab.ps1')
 
 # Ordem inversa da criação: Auth e bancos usam a VPC do workspace Kubernetes, que é sempre o último.
 $DestroySteps = @(
@@ -460,10 +464,18 @@ foreach ($command in @('aws', 'kubectl', 'gh')) {
         throw "Comando obrigatório não encontrado: $command"
     }
 }
+$Environment = Select-OficinaAmbiente -Valor $Environment
+
+if (-not $SkipCredentials) {
+    # O destroy no HCP usa o Variable Set: renova as credenciais do Lab antes de qualquer run.
+    Write-Host '== credenciais do Lab'
+    Wait-OficinaLabCredentials -Region $Region | Out-Null
+    & (Join-Path $PSScriptRoot 'configure-environment.ps1') -Environment $Environment -UseAwsAcademyDisposableProductionProfile
+}
 
 $identity = Invoke-NativeCommand -Command 'aws' -Arguments @('sts', 'get-caller-identity', '--output', 'json')
 if ($identity.ExitCode -ne 0) {
-    throw "Credenciais AWS inválidas ou expiradas. Dê Start Lab, copie o [default] e rode .\scripts\configure-environment.ps1 -Environment $Environment antes deste script."
+    throw "Credenciais AWS inválidas ou expiradas. Dê Start Lab, copie o [default] e rode este script de novo."
 }
 $account = [string](ConvertFrom-NativeJson -Result $identity).Account
 
@@ -474,7 +486,6 @@ Assert-RdsDeletionProtectionDisabled -EnvironmentName $Environment
 Write-Host ''
 Write-Host "Destroy de '$Environment' na conta AWS $account ($Region), projeto HCP $TerraformProjectId."
 Write-Host "Etapas: $(($steps | ForEach-Object { $_.Name }) -join ' -> ')"
-Write-Host 'O HCP usa as credenciais do Variable Set: rode o configure-environment.ps1 logo antes, com o Lab recém-iniciado.'
 $answer = Read-Host "Digite '$Environment' para confirmar"
 if ($answer -ne $Environment) {
     throw 'Confirmação diferente do nome do ambiente. Nada foi destruído.'
@@ -499,4 +510,4 @@ foreach ($step in $steps) {
 }
 
 Write-Host ''
-Write-Host "Ambiente '$Environment' destruído e gates de deploy desligados. Para recriar: Start Lab + configure-environment.ps1 -Environment $Environment (religa os gates) e os workflows de deploy na ordem."
+Write-Host "Ambiente '$Environment' destruído e gates de deploy desligados. Para recriar: .\scripts\provision-environment.ps1 -Environment $Environment"

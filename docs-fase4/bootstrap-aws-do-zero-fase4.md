@@ -4,7 +4,7 @@ Este roteiro sobe a Fase 4 inteira num AWS Academy Learner Lab vazio, desde as f
 
 Todos os comandos são para **Windows PowerShell 5.1**. Rode os blocos na ordem.
 
-> **Atalho:** as seções 7.2 a 15 rodam de uma vez com `scripts/provision-environment.ps1`. Veja o [Bootstrap de uma única vez](bootstrap-automatizado-fase4.md).
+> **Atalho:** os scripts do [Bootstrap automatizado](bootstrap-automatizado-fase4.md) fazem este roteiro com menus (`1` = `homolog`, `2` = `production`): `provision-environment.ps1` sobe o ambiente (seções 7.2 a 15), `lab-reiniciado.ps1` retoma depois de um Start Lab (21), `validar-ambiente.ps1` valida contra as especificações (15, 17 e 19), `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` cuidam do Mercado Pago (20) e `destroy-environment.ps1` destrói (22.1 e 26).
 
 ## 1. Objetivo e ordem obrigatória
 
@@ -163,7 +163,7 @@ O bloco pode ser rodado de novo a qualquer momento: ele clona o que falta e atua
 **Se aparecer alterações locais:** o bloco para antes do `pull`, para não perder trabalho, e lista os arquivos (`M` = alterado, `??` = novo). Entre no repositório mostrado e escolha **uma** das opções:
 
 ```powershell
-Set-Location C:\fiap\fase4\<repo>   # troque <repo> pelo nome mostrado
+Set-Location (Join-Path $Root '<repo>')   # troque <repo> pelo nome mostrado na linha amarela
 git status
 ```
 
@@ -461,7 +461,7 @@ Esperado: EKS sem mudanças destrutivas, add-ons saudáveis, Synthetic `oficina-
 
 ## 15. Validar a saúde técnica
 
-Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; troque `homolog` por `production` na produção):
+Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; escolhendo `2` (production), os nomes terminam em `-production`):
 
 | Serviço | Namespace | Deployment / Service |
 |---|---|---|
@@ -470,20 +470,31 @@ Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; troqu
 | Orçamento e Pagamento | `oficina-orcamento-pagamento-homolog` | `oficina-orcamento-pagamento` |
 
 ```powershell
-. C:\fiap-secrets\oficina-homolog\environment-context.ps1
-function Get-LbUrl($svc, $ns) { 'http://' + (kubectl get svc $svc -n $ns -o jsonpath='{.status.loadBalancer.ingress[0].hostname}') }
-$OS = Get-LbUrl 'oficina-app' 'oficina-homolog'
-$DR = Get-LbUrl 'oficina-diagnostico-reparo' 'oficina-diagnostico-reparo-homolog'
-$OP = Get-LbUrl 'oficina-orcamento-pagamento' 'oficina-orcamento-pagamento-homolog'
-$GW = gh variable get API_GATEWAY_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env homolog
-$OS; $DR; $OP; $GW
-foreach ($u in $OS, $DR, $OP) { Invoke-RestMethod "$u/actuator/health" }
+. {   # cole o bloco inteiro: ele pergunta o ambiente e para no primeiro erro
+  do { $op = Read-Host 'Ambiente: [1] homolog  [2] production' } until ($op -in '1','2')
+  $Amb = switch ($op) { '1' { 'homolog' } '2' { 'production' } }
+  aws eks update-kubeconfig --region us-west-2 --name "oficina-$Amb"
+  kubectl config current-context    # tem que terminar em cluster/oficina-<ambiente>
+  . "C:\fiap-secrets\oficina-$Amb\environment-context.ps1"
+  function Get-LbUrl($svc, $ns) { 'http://' + (kubectl get svc $svc -n $ns -o jsonpath='{.status.loadBalancer.ingress[0].hostname}') }
+  $OS = Get-LbUrl 'oficina-app' "oficina-$Amb"
+  $DR = Get-LbUrl 'oficina-diagnostico-reparo' "oficina-diagnostico-reparo-$Amb"
+  $OP = Get-LbUrl 'oficina-orcamento-pagamento' "oficina-orcamento-pagamento-$Amb"
+  $GW = gh variable get API_GATEWAY_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env $Amb
+  $OS; $DR; $OP; $GW
+  if ($OS -eq 'http://' -or $DR -eq 'http://' -or $OP -eq 'http://') { throw "URL vazia: confira o cluster com kubectl config current-context" }
+  foreach ($u in $OS, $DR, $OP) { Invoke-RestMethod "$u/actuator/health" }
 
-kubectl get deployment,service,hpa,pdb -n oficina-homolog
-kubectl rollout status deployment/oficina-app -n oficina-homolog --timeout=120s
+  kubectl get deployment,service,hpa,pdb -n "oficina-$Amb"
+  kubectl rollout status deployment/oficina-app -n "oficina-$Amb" --timeout=120s
+}
 ```
 
-Esperado: os 3 health `UP`; rollout concluído.
+Cole do `. {` até o `}`. O bloco pergunta o ambiente (1 = `homolog`, 2 = `production`); o `. { }` mantém `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` na janela para a seção 16 e para no primeiro erro.
+
+Esperado: `current-context` terminando em `cluster/oficina-<ambiente>`; 4 URLs preenchidas; os 3 health `UP`; rollout concluído.
+
+> A seção 16 usa `$OS`, `$DR`, `$OP` e `$GW`. Rode a seção 15 e a 16.1 na mesma janela do PowerShell antes da 16.2; em uma janela nova, rode as duas de novo. Depois de subir ou mexer em outro ambiente, o `kubectl` fica apontando para o último cluster usado: por isso a seção começa pelo `update-kubeconfig`.
 
 Swagger (pelos LoadBalancers, não pelo API Gateway):
 
@@ -498,7 +509,7 @@ Start-Process "$OP/swagger-ui.html"
 ### 16.1 Login do funcionário
 
 ```powershell
-$s = Import-Clixml C:\fiap-secrets\oficina-homolog\backend-admin-password.clixml
+$s = Import-Clixml "C:\fiap-secrets\oficina-$Amb\backend-admin-password.clixml"
 $AdminPwd = if ($s -is [securestring]) { [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) } else { [string]$s }
 function J($o) { ,[Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Depth 6)) }   # a vírgula impede o PS 5.1 de desmontar o byte[]
 $CT = 'application/json; charset=utf-8'
@@ -739,6 +750,15 @@ O workflow aquece o login por CPF e o Authorizer antes do Newman, para o cold st
 
 Na 1ª vez, o E2E roda sozinho com o merge do [fiap-tc-fase4-oficina-os-service#14](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/14) (push na `homolog`), que também registra o workflow. Sem isso, o `gh workflow run e2e.yml` responde `HTTP 404: workflow e2e.yml not found on the default branch`, porque a `main` ainda não tem workflows. Depois do 1º run, use os comandos abaixo.
 
+**Pelo script (recomendado):** confere nós, health e pagamento `fake`, roda o E2E com o smoke k6 e mostra o resumo das evidências. Funciona nos 2 ambientes, pelo menu:
+
+```powershell
+.\scripts\validar-ambiente.ps1             # Newman + smoke k6
+.\scripts\validar-ambiente.ps1 -SemCarga   # só o Newman
+```
+
+Direto pelo `gh`:
+
 ```powershell
 gh workflow run e2e.yml --repo tiagomiele/fiap-tc-fase4-oficina-os-service --ref homolog -f environment=homolog -f run_load_test=false
 Start-Sleep 10
@@ -764,17 +784,14 @@ Use depois da seção 23, com a produção no ar. Antes, confira três coisas:
 - **Lab ativo e `[default]` copiado:** o workflow usa as credenciais AWS gravadas no Environment `production` do GitHub.
 - **Pagamento no `fake`:** `gh variable list --repo tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service --env production` não deve listar `PAYMENT_PROVIDER`, ou ela deve estar igual a `fake`.
 
-Pelo script, que renova as credenciais no GitHub e roda só o E2E (digite `production` na confirmação):
+Pelo script, que faz as 3 conferências acima antes de rodar o E2E (escolha `2` no menu). Se o Lab foi reiniciado nesta sessão, rode antes o `.\scripts\lab-reiniciado.ps1`, que renova as credenciais no GitHub e recupera os nós:
 
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
-git pull --ff-only
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\provision-environment.ps1 -Environment production -StartAt e2e                 # Newman
-.\scripts\provision-environment.ps1 -Environment production -StartAt e2e -RunLoadTest    # Newman + smoke k6
+.\scripts\validar-ambiente.ps1             # Newman + smoke k6
+.\scripts\validar-ambiente.ps1 -SemCarga   # só o Newman
 ```
 
-Direto pelo `gh`, só se as credenciais já foram renovadas nesta sessão do Lab (`configure-environment.ps1 -Environment production -UseAwsAcademyDisposableProductionProfile`):
+Direto pelo `gh`, só se as credenciais já foram renovadas nesta sessão do Lab (`lab-reiniciado.ps1`):
 
 ```powershell
 gh workflow run e2e.yml --repo tiagomiele/fiap-tc-fase4-oficina-os-service --ref main -f environment=production -f run_load_test=false
@@ -786,10 +803,10 @@ O run termina com `completed with 'success'`, e o resultado fica no artefato `ne
 
 | Sintoma | Causa | O que fazer |
 |---|---|---|
-| `ExpiredToken` / `InvalidClientTokenId` no passo *Configure AWS Academy credentials* | credenciais do Lab vencidas no GitHub | copie o `[default]` e use o script acima |
+| `ExpiredToken` / `InvalidClientTokenId` no passo *Configure AWS Academy credentials* | credenciais do Lab vencidas no GitHub | copie o `[default]`, rode o `lab-reiniciado.ps1` e o script acima |
 | `LoadBalancer sem hostname` | D&R ou O&P sem deploy na produção | rode o CD dos 2 serviços na `main` (seção 23) |
-| falha no `/pagamentos/{n}/simular` | `PAYMENT_PROVIDER=mercadopago` na produção | volte ao `fake` como na seção 20.6 |
-| `socket hang up` na 1ª requisição (*Health readiness e X-Request-Id*); no PowerShell, `A conexão subjacente estava fechada` | o cluster ficou sem nodes (o Lab parou as EC2) e os pods estão `Pending`; o LoadBalancer fecha a conexão por não ter destino saudável | interrompa o script (`Ctrl+C`), siga a seção 21.2 com `$amb = 'production'` e rode o E2E de novo depois do health `UP` |
+| falha no `/pagamentos/{n}/simular` | `PAYMENT_PROVIDER=mercadopago` na produção | `.\scripts\provedor-pagamento.ps1 -Environment production -Provedor fake` (20.6) |
+| `socket hang up` na 1ª requisição (*Health readiness e X-Request-Id*); no PowerShell, `A conexão subjacente estava fechada` | o cluster ficou sem nodes (o Lab parou as EC2) e os pods estão `Pending`; o LoadBalancer fecha a conexão por não ter destino saudável | interrompa o script (`Ctrl+C`), rode `.\scripts\lab-reiniciado.ps1 -Environment production` e valide de novo |
 
 ## 18. New Relic
 
@@ -906,15 +923,16 @@ No GitHub, abra *fiap-tc-fase4-oficina-os-service → Actions → BDD Saga*, ent
 
 ```powershell
 $id = gh run list --repo tiagomiele/fiap-tc-fase4-oficina-os-service --workflow bdd.yml --branch homolog --limit 1 --json databaseId --jq '.[0].databaseId'
-gh run download $id --repo tiagomiele/fiap-tc-fase4-oficina-os-service --name bdd-report --dir C:iapdd-report
-Get-ChildItem C:iapdd-report -Recurse -Filter *.html | Select-Object -First 1 | Invoke-Item
+$dir = Join-Path $env:TEMP 'bdd-report'   # fora dos clones, para não aparecer como alteração local
+gh run download $id --repo tiagomiele/fiap-tc-fase4-oficina-os-service --name bdd-report --dir $dir
+Get-ChildItem $dir -Recurse -Filter *.html | Select-Object -First 1 | Invoke-Item
 ```
 
 O artefato fica disponível por 90 dias. Se ele tiver expirado, rode o BDD de novo: `gh workflow run bdd.yml --repo tiagomiele/fiap-tc-fase4-oficina-os-service --ref homolog`.
 
 ## 20. Validação manual do Mercado Pago sandbox (depois do E2E verde)
 
-> **Atalho em produção:** depois de ligar o Mercado Pago (20.1) e cadastrar o webhook (20.2), `.\scripts\pagamento-mercadopago.ps1` cria a OS até `AGUARDANDO_PAGAMENTO` e mostra o link. Pague com o comprador de teste (titular `APRO`) e confira com `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...` (sem `< >`). Se o primeiro pagamento for recusado, pode tentar de novo no mesmo link: a aprovação posterior confirma a OS.
+> **Atalho (qualquer ambiente):** depois de ligar o Mercado Pago (20.1) e cadastrar o webhook (20.2), `.\scripts\pagamento-mercadopago.ps1` faz o 20.3 e o 20.4 sozinho: cria a OS de R$ 5,00 até `AGUARDANDO_PAGAMENTO`, copia o link, espera você pagar com o titular `APRO` e confere se a OS ficou `PAGA`. Para conferir depois: `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...` (sem `< >`). Se o primeiro pagamento for recusado, pode tentar de novo no mesmo link: a aprovação posterior confirma a OS. Ao terminar, faça o 20.6.
 
 **Quando:** só depois que o run do E2E do passo 17 terminar com sucesso. O `gh run watch` do 17 termina com `✓ ... completed with 'success'`. No GitHub (*Actions → E2E*), o run aparece com o ícone verde ✓. Para conferir depois, rode `gh run list --repo tiagomiele/fiap-tc-fase4-oficina-os-service --workflow e2e.yml --limit 1`, que deve mostrar `completed  success`. Se aparecer `failure` (ícone vermelho ✗), não siga para esta seção: corrija o E2E antes. O E2E e os cenários do 16 usam `PAYMENT_PROVIDER=fake` e o `/pagamentos/{n}/simular`. Com o Mercado Pago ligado, esse endpoint não existe. Por isso a ordem é: 16 → 17 → **20** → voltar ao `fake` (20.6). O Newman não testa o Mercado Pago real, porque no Checkout Pro uma pessoa precisa abrir o link e pagar. Esta seção pode ser repetida quantas vezes quiser.
 
@@ -923,28 +941,25 @@ O artefato fica disponível por 90 dias. Se ele tiver expirado, rode o BDD de no
 **Pré-requisitos**
 - credenciais de teste do vendedor (4.8): Access Token, Public Key e assinatura secreta do webhook;
 - conta de teste compradora `oficina-cliente` (usuário, senha e código de verificação ficam no card da conta, em *Contas de teste*);
-- Learner Lab ativo e, na mesma janela do PowerShell, as variáveis do 15 (`$OS`, `$DR`, `$OP`, `$GW`), o login do 16.1 (`$HF`, `J`, `$CT`) e o cadastro do 16.2 (`$cli`, `$Placa`, `$Cpf`).
+- só para os passos manuais 20.3 a 20.5: na mesma janela do PowerShell, as variáveis do 15 (`$Amb`, `$OS`, `$DR`, `$OP`, `$GW`), o login do 16.1 (`$HF`, `J`, `$CT`) e o cadastro do 16.2 (`$cli`, `$Placa`, `$Cpf`), no mesmo ambiente.
 
 ### 20.1 Ligar o Mercado Pago
 
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
-.\scripts\configure-environment.ps1 -Environment homolog -ConfigureMercadoPago   # na 1ª vez pede Access Token, Public Key e assinatura do webhook
-Invoke-Workflow -Repo fiap-tc-fase4-oficina-orcamento-pagamento-service -Workflow cd.yml
-kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-homolog -o jsonpath='{.data.PAYMENT_PROVIDER} {.data.MERCADOPAGO_SANDBOX} {.data.MERCADOPAGO_NOTIFICATION_URL}'
+.\scripts\provedor-pagamento.ps1   # escolha o ambiente e o provedor 1 (mercadopago)
 ```
 
-Esperado: `mercadopago true <GW>/webhooks/mercadopago`. O `-ConfigureMercadoPago` grava os 3 valores em `C:\fiap-secrets\shared\mercadopago-*.clixml` e reaproveita nas próximas vezes. Se você renovar uma credencial no painel, apague só o arquivo dela, por exemplo `Remove-Item C:\fiap-secrets\shared\mercadopago-access-token.clixml`, e rode os 2 comandos de novo.
+O script confere as credenciais e se o ambiente está no ar, grava as credenciais sandbox e `PAYMENT_PROVIDER=mercadopago` no Environment escolhido (na 1ª vez, pede o Access Token, a Public Key e a assinatura do webhook), confere os nós, roda o CD do Orçamento e Pagamento na branch do ambiente e confere o ConfigMap. No fim, mostra a URL do webhook para o 20.2. A configuração é por ambiente: ligar na `homolog` não liga na `production`.
+
+Os 3 valores ficam em `C:\fiap-secrets\shared\mercadopago-*.clixml` e valem para os 2 ambientes. Se você renovar uma credencial no painel, apague só o arquivo dela, por exemplo `Remove-Item C:\fiap-secrets\shared\mercadopago-access-token.clixml`, e rode o script de novo.
 
 ### 20.2 Cadastrar o webhook no painel
 
-```powershell
-"$GW/webhooks/mercadopago"   # mesma URL do output mercadopago_webhook_url do Auth
-```
+Use a URL mostrada no fim do 20.1 (é o `$GW/webhooks/mercadopago` do ambiente, igual ao output `mercadopago_webhook_url` do Auth).
 
 No painel (https://www.mercadopago.com.br/developers/panel/app → sua aplicação → *Webhooks → Configurar notificações*), no **modo de teste**: cole essa URL no lugar do `https://example.com`, marque só o evento **Pagamentos (legacy)** (é o `type=payment`; não marque *Order*) e salve. Não gere uma assinatura nova. Se gerar, apague `C:\fiap-secrets\shared\mercadopago-webhook-secret.clixml` e refaça o 20.1.
 
-A URL muda sempre que a homologação é recriada (API Gateway novo). Depois de cada recriação, refaça este passo.
+A URL muda sempre que o ambiente é recriado (API Gateway novo). Depois de cada recriação, refaça este passo. O painel aceita uma URL por vez: aponte para o ambiente que está testando.
 
 ### 20.3 Serviço de R$ 5,00 e função auxiliar
 
@@ -1055,7 +1070,7 @@ Invoke-RestMethod "$GW/ordens-servico/$R/historico" -Headers $HC | ConvertTo-Jso
 Logs do webhook (opcional):
 
 ```powershell
-kubectl logs -n oficina-orcamento-pagamento-homolog deploy/oficina-orcamento-pagamento --tail=200 | Select-String -Pattern 'Mercado Pago|Cobran|webhook'
+kubectl logs -n "oficina-orcamento-pagamento-$Amb" deploy/oficina-orcamento-pagamento --tail=200 | Select-String -Pattern 'Mercado Pago|Cobran|webhook'
 ```
 
 **Se der errado**
@@ -1065,7 +1080,7 @@ kubectl logs -n oficina-orcamento-pagamento-homolog deploy/oficina-orcamento-pag
 | OS fica em `AGUARDANDO_PAGAMENTO` com pagamento `PENDENTE` e nada no log | o webhook não chegou | confira a URL do 20.2 (API Gateway da recriação atual) e o evento *Pagamentos*; no painel, use *Simular notificação* |
 | log `Webhook do Mercado Pago com assinatura inválida` (401) | a assinatura do painel não é a do `-ConfigureMercadoPago` | apague `C:\fiap-secrets\shared\mercadopago-webhook-secret.clixml` e refaça o 20.1 |
 | log `Mercado Pago recusou ...: HTTP 401 invalid_access_token` | token renovado ou errado | apague `mercadopago-access-token.clixml` e refaça o 20.1 |
-| o link abre, mas o Checkout diz que uma das partes é de teste ou não deixa pagar | credencial `APP_USR-` de conta de teste usa o link normal | `gh variable set MERCADOPAGO_SANDBOX --repo tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service --env homolog --body false` e rode o CD do O&P |
+| o link abre, mas o Checkout diz que uma das partes é de teste ou não deixa pagar | credencial `APP_USR-` de conta de teste usa o link normal | `gh variable set MERCADOPAGO_SANDBOX --repo tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service --env $Amb --body false` e rode o 20.1 de novo |
 | `New-OsMercadoPago` para com "acima de R$ 10" | outro serviço ou peça entrou na OS | não pague; abra outra OS com a função |
 
 ### 20.6 Voltar ao `fake` (obrigatório ao terminar)
@@ -1073,35 +1088,36 @@ kubectl logs -n oficina-orcamento-pagamento-homolog deploy/oficina-orcamento-pag
 O `PAYMENT_PROVIDER` fica gravado no GitHub Environment e sobrevive ao destroy. O `configure-environment.ps1` sem `-ConfigureMercadoPago` não volta ao `fake` sozinho.
 
 ```powershell
-gh variable set PAYMENT_PROVIDER --repo tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service --env homolog --body fake
-Invoke-Workflow -Repo fiap-tc-fase4-oficina-orcamento-pagamento-service -Workflow cd.yml
-kubectl get configmap orcamento-pagamento-config -n oficina-orcamento-pagamento-homolog -o jsonpath='{.data.PAYMENT_PROVIDER}'   # fake
+.\scripts\provedor-pagamento.ps1   # escolha o ambiente e o provedor 2 (fake)
 ```
 
-Com o `fake` de volta, o E2E do 17 volta a passar. Para validar o Mercado Pago de novo, repita a partir do 20.1.
+Esperado: `Pagamento em '<ambiente>': fake`. Com o ambiente fora do ar, o script só grava a variável, e a próxima subida já vem no `fake`. Com o `fake` de volta, o E2E do 17 volta a passar. Para validar o Mercado Pago de novo, repita a partir do 20.1.
 
 ## 21. Sessão do Lab expirou ou foi reiniciada (`ExpiredToken`, `voc-cancel-cred`)
 
 A infraestrutura (EKS, RDS, DynamoDB, SQS) e os states no HCP **continuam existindo**. Não recomece do zero: renove as credenciais, confira os nós e repita **só** o passo que falhou.
 
-### 21.1 Renovar a sessão e as credenciais
+### 21.1 Renovar a sessão, as credenciais e os nós
 
 1. Pare de disparar workflows.
 2. Learner Lab → **Start Lab** → espere o indicador verde → **AWS Details → AWS CLI → Show** → copie o bloco `[default]` inteiro.
-3. No PowerShell:
+3. No PowerShell, na pasta do OS Service:
 
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
 git pull --ff-only
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\configure-environment.ps1 -Environment homolog
+.\scripts\lab-reiniciado.ps1   # escolha o ambiente no menu
 ```
 
-O script atualiza as credenciais no computador, no Variable Set do HCP e nos GitHub Environments dos 6 repos. Os tokens (HCP, sincronização, SonarCloud, New Relic) já estão salvos e **não** são pedidos de novo. Esperado no fim: `Configuração automática concluída para homolog.`
+O script confere se o `[default]` é de uma sessão válida (se não for, espera você copiar de novo e teclar Enter), atualiza as credenciais no computador, no Variable Set do HCP e nos GitHub Environments dos 6 repos, recupera os nós do EKS (21.2), espera os 3 serviços e confere os health. Os tokens (HCP, sincronização, SonarCloud, New Relic) já estão salvos e **não** são pedidos de novo. Esperado no fim: `Ambiente '<ambiente>' pronto para uso.` Se o ambiente escolhido não estiver no ar, o script para sem alterar nada.
 
 Confira a linha `AWS validada: conta ...`: tem que ser a **mesma conta** de antes (ex.: `949086004048`). Se for outra, pare: a infraestrutura não está nela.
 
+No meio do `provision-environment.ps1`, não precisa deste passo: retome com o comando que ele mostrou, que já renova as credenciais e confere os nós.
+
 ### 21.2 Conferir se os nós do EKS voltaram
+
+O `lab-reiniciado.ps1` (21.1) faz esta seção sozinho. Os comandos abaixo são o passo a passo manual e o diagnóstico.
 
 Quando a sessão acaba, o Lab para as instâncias EC2. Na volta, os nós podem não entrar no cluster. Sintomas: pods `Pending` há muito tempo, LoadBalancer que fecha a conexão (`socket hang up` no Newman, `A conexão subjacente estava fechada` no PowerShell) e o `pg-tunnel` que não fica pronto.
 
@@ -1155,7 +1171,7 @@ Se depois da recriação o `explicit deny` continuar, o bloqueio é permanente n
 
 ## 22. Resumo operacional mínimo (reconstrução com tudo já preparado)
 
-Os passos 2 a 11 abaixo são executados de uma vez pelo `.\scripts\provision-environment.ps1 -Environment homolog` ([Bootstrap de uma única vez](bootstrap-automatizado-fase4.md)).
+Os passos 2 a 11 abaixo são executados de uma vez pelo `.\scripts\provision-environment.ps1`; o 12 pelo `validar-ambiente.ps1`; e o 13 pelo `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` ([Bootstrap automatizado](bootstrap-automatizado-fase4.md)).
 
 ```text
 1.  Start Lab e copiar [default]
@@ -1175,15 +1191,12 @@ Os passos 2 a 11 abaixo são executados de uma vez pelo `.\scripts\provision-env
 
 ### 22.1 Destruir a homologação para recomeçar do zero
 
-**Automático (recomendado):** primeiro renove as credenciais da AWS. No AWS Academy, clique em **Start Lab**, mesmo com o Lab ativo, vá em **AWS Details → AWS CLI → Show** e copie o bloco `[default]`. Logo em seguida, rode o bloco abaixo, na ordem. O script executa as etapas 1 a 8, uma de cada vez, e espera cada uma terminar:
+**Automático (recomendado):** no AWS Academy, clique em **Start Lab**, mesmo com o Lab ativo, vá em **AWS Details → AWS CLI → Show** e copie o bloco `[default]`. Logo em seguida, rode o bloco abaixo, na pasta do OS Service. O script confere o `[default]`, renova as credenciais (computador, HCP e GitHub), executa as etapas 1 a 8, uma de cada vez, e espera cada uma terminar:
 
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
 git pull
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\configure-environment.ps1 -Environment homolog                                          # lê o [default] copiado
-aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog- --query 'length(QueueUrls)'   # um número, sem AccessDenied
-.\scripts\destroy-environment.ps1 -Environment homolog                                            # pede para digitar 'homolog'
+.\scripts\destroy-environment.ps1   # escolha o ambiente no menu e digite o nome dele para confirmar
 ```
 
 Se uma etapa falhar, corrija a causa e retome de onde parou. Rode um comando por vez, sem colar duas vezes na mesma linha:
@@ -1192,7 +1205,7 @@ Se uma etapa falhar, corrija a causa e retome de onde parou. Rode um comando por
 .\scripts\destroy-environment.ps1 -Environment homolog -StartAt lambda-enis
 ```
 
-O `aws sqs list-queues` serve para confirmar que a credencial vale de verdade. O `aws sts get-caller-identity` continua respondendo mesmo depois que o Lab cancela a credencial (`voc-cancel-cred`), então ele não serve para essa checagem. A etapa `lambda-enis` costuma ficar de 10 a 40 min mostrando `ENI(s) de Lambda ainda na VPC; aguardando...`. Isso é normal: deixe o script esperar.
+Para confirmar que a credencial vale de verdade, o script lê as filas SQS: o `aws sts get-caller-identity` continua respondendo mesmo depois que o Lab cancela a credencial (`voc-cancel-cred`), então ele não serve para essa checagem. A etapa `lambda-enis` costuma ficar de 10 a 40 min mostrando `ENI(s) de Lambda ainda na VPC; aguardando...`. Isso é normal: deixe o script esperar.
 
 O script aceita `homolog` e `production` (produção só com o perfil descartável do AWS Academy; o perfil endurecido, com `deletion_protection`, é recusado) e só mexe nos workspaces `oficina-fase4-*-<ambiente>` do projeto da Fase 4. Ele desliga os gates de deploy (`TF_APPLY_ENABLED`, `ENABLE_TERRAFORM_APPLY`, `DEPLOY_ENABLED`) antes de destruir, pula os workspaces que já estão vazios e pode ser rodado de novo sem risco. Etapas, na ordem: `auth` → `namespaces` → `newrelic` → `db-diagnostico-reparo` → `db-orcamento-pagamento` → `db-os` → `lambda-enis` → `kubernetes` → `verificacao`.
 
@@ -1234,7 +1247,7 @@ aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog-     
 **Troubleshooting do destroy**
 - **O destroy do Kubernetes falha em subnet ou security group com `DependencyViolation`:** ainda há um LoadBalancer ou uma ENI de Lambda na VPC. Repita o passo 2, espere as ENIs e faça um novo *Queue destroy plan*. Não apague recursos pelo console.
 - **O run de destroy falha com `ExpiredToken` ou `voc-cancel-cred`:** a sessão do Lab expirou no meio. Renove as credenciais (passo 0) e faça um novo *Queue destroy plan* no mesmo workspace. O destroy continua de onde parou.
-- **O destroy do Auth (ou outro) falha no plan com `AccessDenied ... voc-cancel-cred`:** o Variable Set do HCP está com credenciais de uma sessão antiga do Lab. Renove as credenciais (Start Lab, copiar `[default]`, `configure-environment.ps1`) e retome com `-StartAt <etapa>`.
+- **O destroy do Auth (ou outro) falha no plan com `AccessDenied ... voc-cancel-cred`:** o Variable Set do HCP está com credenciais de uma sessão antiga do Lab. Dê Start Lab, copie o `[default]` e retome com `-StartAt <etapa>` (o script renova as credenciais antes de seguir).
 - **O destroy do New Relic falha no plan com `408 response returned`:** foi um timeout da API do New Relic. Retome com `-StartAt newrelic`. Se o erro se repetir, espere uns 5 min antes de tentar de novo.
 - **No novo apply, `ResourceAlreadyExistsException` em um log group do CloudWatch:** o log group foi recriado pela AWS depois do destroy. Apague-o (`aws logs delete-log-group --region us-west-2 --log-group-name <nome>`) e rode o workflow de novo.
 
@@ -1322,6 +1335,10 @@ Não avance se:
 | Fila sempre com **Mensagens disponíveis** = `0` | comportamento normal: o consumidor processa e apaga a mensagem em segundos | 16.5 (onde ver o histórico) e 16.6 (cenário com a mensagem parada) |
 | `namespaces "oficina-diagnostico-reparo" not found` | namespace sem o sufixo do ambiente | use `oficina-diagnostico-reparo-homolog` (tabela da seção 15) |
 | `namespaces "oficina-production" not found` | `kubectl` apontando para o cluster de homologação | `aws eks update-kubeconfig --region us-west-2 --name oficina-production` |
+| `namespaces "oficina-homolog" not found` ou URL `http://` vazia | `kubectl` apontando para o cluster de produção | `aws eks update-kubeconfig --region us-west-2 --name oficina-homolog` (a seção 15 já faz) |
+| Script pede `AWS_ACCESS_KEY_ID:` | área de transferência sem o `[default]` | `Ctrl+C`, copie o `[default]` e rode de novo; os scripts do Bootstrap automatizado conferem antes e só pedem Enter |
+| `No cluster found for name: oficina-<ambiente>` | ambiente destruído ou nunca criado | `.\scripts\provision-environment.ps1`; não rode o `configure-environment.ps1` desse ambiente à toa, porque ele religa os gates de apply |
+| `Invoke-Workflow` não reconhecido | a função da seção 7.4 não foi criada nesta janela | cole o bloco da 7.4 inteiro; ou use os scripts do Bootstrap automatizado, que não dependem dela |
 | `pg-tunnel` em `Pending`, DBeaver com senha recusada ou `Connection refused` | nodes cheios, senha antiga ou conexão de outro ambiente | [Database Infra, seção 6.3](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra#63-ver-os-dados-do-rds-dbeaver-ou-psql) |
 
 Tempos típicos: EKS 20–40 min; cada RDS 10–25 min; DynamoDB 2–5 min; Auth 5–15 min; cada CD 8–15 min; Kubernetes (2º run) 5–20 min. Total: 2h30 a 3h30.
@@ -1353,19 +1370,15 @@ Faça isso sempre ao terminar uma demonstração. EKS, NAT Gateway, 2 RDS e 3 Lo
 2. **Destrua, um ambiente por vez:**
 
 ```powershell
-Set-Location C:\fiap\fase4\fiap-tc-fase4-oficina-os-service
 git pull
 Set-ExecutionPolicy -Scope Process Bypass -Force
-# Homologação
-.\scripts\configure-environment.ps1 -Environment homolog
-.\scripts\destroy-environment.ps1 -Environment homolog                # digite 'homolog' para confirmar
-# Produção (só o perfil descartável)
-.\scripts\configure-environment.ps1 -Environment production -UseAwsAcademyDisposableProductionProfile
-.\scripts\destroy-environment.ps1 -Environment production             # digite 'production' para confirmar
+.\scripts\destroy-environment.ps1   # escolha o ambiente no menu e digite o nome dele para confirmar
 ```
 
+O script renova as credenciais sozinho (lê o `[default]` copiado) e só aceita produção com o perfil descartável do AWS Academy. Para destruir o outro ambiente, copie o `[default]` de novo e rode o script outra vez.
+
 3. **Se uma etapa falhar** (token expirado, `408` do New Relic, ENI presa): corrija a causa e retome da etapa, por exemplo `.\scripts\destroy-environment.ps1 -Environment production -StartAt lambda-enis`. Detalhes e troubleshooting em 22.1.
-4. **Confira que não sobrou nada** (troque `homolog` por `production` se for o caso):
+4. **Confira que não sobrou nada.** O script já faz isso na etapa `verificacao`; para conferir à mão (troque `homolog` por `production` se for o caso):
 
 ```powershell
 aws eks list-clusters --region us-west-2
