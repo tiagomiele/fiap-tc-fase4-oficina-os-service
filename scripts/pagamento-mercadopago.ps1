@@ -1,20 +1,41 @@
-<#
-Teste manual do Mercado Pago (sandbox) em producao.
-  1a execucao (sem parametros): cria uma OS ate AGUARDANDO_PAGAMENTO e mostra o link de pagamento.
-  2a execucao (-NumeroOs ...): depois de pagar no link, confere se a OS ficou PAGA.
-Requer: gh logado, aws com credenciais do Lab e kubectl apontando para oficina-production.
+﻿<#
+.SYNOPSIS
+    Teste manual do Mercado Pago (sandbox): cria uma OS de R$ 5,00 até AGUARDANDO_PAGAMENTO, mostra o link e confere se ela ficou PAGA.
+
+.DESCRIPTION
+    Antes: .\scripts\provedor-pagamento.ps1 -Provedor mercadopago (e o webhook cadastrado no painel).
+    O link vai para a área de transferência. Pague numa janela anônima com o comprador de teste e o titular APRO,
+    volte ao PowerShell e tecle Enter: o script confere se o webhook chegou e se a Saga marcou a OS como PAGA.
+    Para conferir depois uma OS já paga: -NumeroOs OS-...
+
+.EXAMPLE
+    .\scripts\pagamento-mercadopago.ps1
+    .\scripts\pagamento-mercadopago.ps1 -Environment production -NumeroOs OS-112026-000001
 #>
-param([string]$NumeroOs)
+[CmdletBinding()]
+param(
+    # Vazio: o script pergunta qual ambiente.
+    [string]$Environment,
+    [string]$NumeroOs,
+    [string]$SecretsRoot,
+    [string]$Region = 'us-west-2'
+)
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$Repo = 'tiagomiele/fiap-tc-fase4-oficina-os-service'
-$TargetEnv = 'production'
+. (Join-Path $PSScriptRoot 'oficina-lab.ps1')
 
-function Get-Var($name) { (gh variable get $name --repo $Repo --env $TargetEnv).Trim() }
+$Repo = 'fiap-tc-fase4-oficina-os-service'
+
+function Get-Var($name) {
+    $value = Get-OficinaGitHubVar -Repositorio $Repo -Nome $name -Ambiente $Environment
+    if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+    $value.Trim()
+}
 function Get-Lb($svc, $ns) {
-    $h = kubectl get svc $svc -n $ns -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-    if ([string]::IsNullOrWhiteSpace($h)) { throw "LoadBalancer de $svc sem hostname." }
-    "http://$h"
+    $url = Get-OficinaLbUrl -Service $svc -Namespace $ns
+    if ($null -eq $url) { throw "LoadBalancer de $svc sem hostname em $ns." }
+    $url
 }
 function Call($method, $url, $token, $body) {
     $headers = @{}
@@ -24,36 +45,56 @@ function Call($method, $url, $token, $body) {
     Invoke-RestMethod @params
 }
 function Wait-For($label, $expected, [scriptblock]$read, [int]$attempts = 40) {
+    $current = $null
     for ($i = 1; $i -le $attempts; $i++) {
         try { $current = & $read } catch { $current = "HTTP $([int]$_.Exception.Response.StatusCode)" }
         if ($current -eq $expected) { Write-Host "  $label -> $current"; return }
         Start-Sleep 3
     }
-    throw "$label nao chegou em $expected (ultimo valor: $current)."
+    throw "$label não chegou em $expected (último valor: $current)."
+}
+function Confirm-Paga($numero) {
+    Write-Host "== Conferindo a OS $numero"
+    Wait-For 'OS' 'PAGA' { (Call GET "$backend/ordens-servico/$numero" $adminToken $null).status } 60
+    $p = Call GET "$pag/pagamentos/$numero" $adminToken $null
+    Write-Host "  Pagamento: status=$($p.status) provedor=$($p.provedor) comprovante=$($p.comprovante)"
+    Write-Host "Mercado Pago validado em '$Environment': o webhook chegou e a Saga marcou a OS $numero como PAGA." -ForegroundColor Green
+    Write-Host "Ao terminar: .\scripts\provedor-pagamento.ps1 -Environment $Environment -Provedor fake"
 }
 
-Write-Host '== Lendo enderecos de producao'
+Assert-OficinaComandos
+$Environment = Select-OficinaAmbiente -Valor $Environment
+Assert-OficinaAwsAccess -Ambiente $Environment -Region $Region
+Connect-OficinaCluster -Ambiente $Environment -Region $Region
+
+Write-Host "== Lendo endereços de $Environment"
+$config = Get-OficinaPagamentoConfig -Ambiente $Environment
+if ($null -eq $config) { throw "O Orçamento e Pagamento não está no ar em '$Environment'." }
+if ($config.Provedor -ne 'mercadopago') {
+    throw "Pagamento em '$($config.Provedor)'. Ligue antes: .\scripts\provedor-pagamento.ps1 -Environment $Environment -Provedor mercadopago"
+}
+Write-Host "  webhook que deve estar no painel: $($config.Webhook)"
 $backend = Get-Var BACKEND_BASE_URL
 $apiGw   = Get-Var API_GATEWAY_BASE_URL
-$auth    = try { Get-Var AUTH_BASE_URL } catch { $apiGw }
-if ([string]::IsNullOrWhiteSpace($auth)) { $auth = $apiGw }
-$diag    = Get-Lb oficina-diagnostico-reparo oficina-diagnostico-reparo-production
-$pag     = Get-Lb oficina-orcamento-pagamento oficina-orcamento-pagamento-production
+$auth    = Get-Var AUTH_BASE_URL
+if ($null -eq $auth) { $auth = $apiGw }
+if ($null -eq $backend -or $null -eq $apiGw) { throw "BACKEND_BASE_URL ou API_GATEWAY_BASE_URL ausente no Environment '$Environment'." }
+$diag    = Get-Lb oficina-diagnostico-reparo "oficina-diagnostico-reparo-$Environment"
+$pag     = Get-Lb oficina-orcamento-pagamento "oficina-orcamento-pagamento-$Environment"
 
-$adminEmail = try { Get-Var ADMIN_EMAIL } catch { 'admin@oficina.local' }
-if ([string]::IsNullOrWhiteSpace($adminEmail)) { $adminEmail = 'admin@oficina.local' }
-$secretFile = 'C:\fiap-secrets\oficina-production\backend-admin-password.clixml'
+$adminEmail = Get-Var ADMIN_EMAIL
+if ($null -eq $adminEmail) { $adminEmail = 'admin@oficina.local' }
+if ([string]::IsNullOrWhiteSpace($SecretsRoot)) {
+    $SecretsRoot = if ($env:OS -eq 'Windows_NT') { 'C:\fiap-secrets' } else { Join-Path $HOME '.oficina-secrets' }
+}
+$secretFile = Join-Path (Join-Path $SecretsRoot "oficina-$Environment") 'backend-admin-password.clixml'
 $secure = if (Test-Path $secretFile) { Import-Clixml $secretFile } else { Read-Host 'Senha do admin do backend' -AsSecureString }
 $adminPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
 
 $adminToken = (Call POST "$backend/auth/login" $null @{ email = $adminEmail; senha = $adminPassword }).accessToken
 
 if ($NumeroOs) {
-    Write-Host "== Conferindo a OS $NumeroOs"
-    Wait-For 'OS' 'PAGA' { (Call GET "$backend/ordens-servico/$NumeroOs" $adminToken $null).status } 60
-    $p = Call GET "$pag/pagamentos/$NumeroOs" $adminToken $null
-    Write-Host "  Pagamento: status=$($p.status) provedor=$($p.provedor) comprovante=$($p.comprovante)"
-    Write-Host 'Mercado Pago validado: o webhook chegou e a Saga marcou a OS como PAGA.'
+    Confirm-Paga $NumeroOs
     return
 }
 
@@ -83,7 +124,7 @@ $servicoId = (Call POST "$backend/servicos" $adminToken @{ nome = "Teste Mercado
 Write-Host '== Saga: diagnostico'
 $os = (Call POST "$backend/ordens-servico" $adminToken @{ idCliente = $clienteId; placa = $plate; descricaoProblema = 'Teste do Mercado Pago' }).numero
 Write-Host "  OS criada: $os"
-Wait-For 'Execucao' 'NA_FILA_DIAGNOSTICO' { (Call GET "$diag/execucoes/$os" $tecToken $null).etapa }
+Wait-For 'Execução' 'NA_FILA_DIAGNOSTICO' { (Call GET "$diag/execucoes/$os" $tecToken $null).etapa }
 Call POST "$diag/execucoes/$os/iniciar-diagnostico" $tecToken $null | Out-Null
 Wait-For 'OS' 'EM_DIAGNOSTICO' { (Call GET "$backend/ordens-servico/$os" $adminToken $null).status }
 Call POST "$backend/ordens-servico/$os/servicos" $tecToken @{ idServicoSku = $servicoId; quantidade = 1 } | Out-Null
@@ -92,22 +133,25 @@ Wait-For 'OS' 'AGUARDANDO_APROVACAO' { (Call GET "$backend/ordens-servico/$os" $
 
 Write-Host '== Cliente aprova o orcamento (login por CPF no API Gateway)'
 $ownerToken = (Call POST "$auth/auth/cpf" $null @{ cpf = $cpf }).accessToken
-Wait-For 'Orcamento' 'AGUARDANDO_APROVACAO' { (Call GET "$apiGw/orcamentos/$os" $ownerToken $null).status }
+Wait-For 'Orçamento' 'AGUARDANDO_APROVACAO' { (Call GET "$apiGw/orcamentos/$os" $ownerToken $null).status }
 Call POST "$apiGw/orcamentos/$os/aprovar" $ownerToken $null | Out-Null
 Wait-For 'OS' 'EM_EXECUCAO' { (Call GET "$backend/ordens-servico/$os" $adminToken $null).status }
 
 Write-Host '== Saga: reparo'
-Wait-For 'Execucao' 'NA_FILA_REPARO' { (Call GET "$diag/execucoes/$os" $tecToken $null).etapa }
+Wait-For 'Execução' 'NA_FILA_REPARO' { (Call GET "$diag/execucoes/$os" $tecToken $null).etapa }
 Call POST "$diag/execucoes/$os/iniciar-reparo" $tecToken $null | Out-Null
 Call POST "$diag/execucoes/$os/concluir-reparo" $tecToken $null | Out-Null
 Wait-For 'OS' 'AGUARDANDO_PAGAMENTO' { (Call GET "$backend/ordens-servico/$os" $adminToken $null).status }
 Wait-For 'Pagamento' 'PENDENTE' { (Call GET "$apiGw/pagamentos/$os" $ownerToken $null).status }
 
 $p = Call GET "$apiGw/pagamentos/$os" $ownerToken $null
-if ($p.provedor -notmatch 'mercado') { Write-Warning "Provedor atual: $($p.provedor). Rode o configure-environment com -ConfigureMercadoPago e o CD do Orcamento e Pagamento antes." }
+if ($p.provedor -notmatch 'mercado') { throw "Provedor da cobrança: $($p.provedor). Rode .\scripts\provedor-pagamento.ps1 -Environment $Environment -Provedor mercadopago." }
+try { $p.linkPagamento | Set-Clipboard } catch { }
 Write-Host ''
 Write-Host "OS:    $os   Valor: $($p.valor)"
-Write-Host "LINK:  $($p.linkPagamento)"
+Write-Host "LINK:  $($p.linkPagamento)   (já copiado para a área de transferência)"
 Write-Host ''
-Write-Host 'Abra o LINK numa janela anonima, entre com a conta Comprador de teste e pague com titular APRO.'
-Write-Host "Depois rode:  .\pagamento-mercadopago.ps1 -NumeroOs $os"
+Write-Host 'Abra o LINK numa janela anônima (Ctrl+Shift+N), entre com o comprador de teste e pague com o Mastercard 5031 4332 1540 6351,'
+Write-Host 'titular APRO, CVV 123, validade 11/30, CPF 12345678909.'
+Read-Host 'Depois de pagar, volte aqui e tecle Enter para conferir (Ctrl+C sai; confira depois com -NumeroOs)' | Out-Null
+Confirm-Paga $os

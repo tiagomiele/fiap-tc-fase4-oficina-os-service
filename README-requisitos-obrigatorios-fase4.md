@@ -42,7 +42,7 @@ Arquitetura hexagonal: ![Arquitetura hexagonal: domínio, portas e adaptadores d
 | Atualizar status durante diagnóstico e reparo | Diagnóstico e Reparo | [`ExecucaoService`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/homolog/src/main/java/br/com/oficina/diagnosticoreparo/usecase/ExecucaoService.java) |
 | Comunicar a finalização ao OS Service | Diagnóstico e Reparo → OS | eventos `DIAGNOSTICO_CONCLUIDO` e `REPARO_CONCLUIDO` na fila `os-eventos` |
 
-**Pagamento validado em produção com o Mercado Pago Sandbox:** OS `OS-102026-000003`, pagamento `APROVADO`, provedor `mercadopago`, comprovante `185889123735`, OS em `PAGA`. Roteiro reproduzível: [`scripts/pagamento-mercadopago.ps1`](scripts/pagamento-mercadopago.ps1).
+**Pagamento validado em produção com o Mercado Pago Sandbox:** OS `OS-112026-000001`, pagamento `APROVADO`, provedor `mercadopago`, comprovante `189298039408`, OS em `PAGA`. Roteiro reproduzível: [`scripts/pagamento-mercadopago.ps1`](scripts/pagamento-mercadopago.ps1).
 
 ### Banco próprio, SQL e NoSQL
 
@@ -189,7 +189,7 @@ Sugestão de roteiro, com o que mostrar e onde:
 
 | Tópico exigido | O que mostrar |
 |---|---|
-| Fluxo completo de uma OS pelos microsserviços | Rodar o [Validacao E2E](.github/workflows/e2e.yml) em `production` ou o [`pagamento-mercadopago.ps1`](scripts/pagamento-mercadopago.ps1), mostrando os status no histórico da OS |
+| Fluxo completo de uma OS pelos microsserviços | Rodar o [`validar-ambiente.ps1`](scripts/validar-ambiente.ps1) (dispara o [Validacao E2E](.github/workflows/e2e.yml)) ou o [`pagamento-mercadopago.ps1`](scripts/pagamento-mercadopago.ps1), mostrando os status no histórico da OS |
 | Saga e tratamento de falhas | Cenários de compensação do [BDD](bdd/src/test/resources/features/saga.feature) no run do `BDD Saga`; rejeição/cancelamento via Swagger; uma mensagem na DLQ |
 | Deploy automatizado com validação de testes | Merge em `homolog` de um serviço → `CD` roda testes e faz o deploy no EKS |
 | Monitoramento e rastreamento | Dashboard `Oficina-fase4-production`, página Saga, e busca de logs por `correlationId` |
