@@ -131,6 +131,21 @@ function Wait-OficinaLabCredentials {
     }
 }
 
+function Update-OficinaCredenciais {
+    param(
+        [Parameter(Mandatory)][string]$Ambiente,
+        [string]$RepositoriesRoot,
+        [switch]$ConfigureMercadoPago
+    )
+
+    # Os workflows usam as credenciais gravadas nos GitHub Environments: regrava a partir do arquivo local já validado.
+    $arquivo = if (-not [string]::IsNullOrWhiteSpace($env:AWS_SHARED_CREDENTIALS_FILE)) { $env:AWS_SHARED_CREDENTIALS_FILE } else { Join-Path (Join-Path $HOME '.aws') 'credentials' }
+    $configure = @{ Environment = $Ambiente; UseAwsAcademyDisposableProductionProfile = $true; AwsCredentialsFile = $arquivo }
+    if ($ConfigureMercadoPago) { $configure.ConfigureMercadoPago = $true }
+    if (-not [string]::IsNullOrWhiteSpace($RepositoriesRoot)) { $configure.RepositoriesRoot = $RepositoriesRoot }
+    & (Join-Path $PSScriptRoot 'configure-environment.ps1') @configure
+}
+
 function Test-OficinaCluster {
     param([Parameter(Mandatory)][string]$Ambiente, [string]$Region = $OficinaRegion)
 

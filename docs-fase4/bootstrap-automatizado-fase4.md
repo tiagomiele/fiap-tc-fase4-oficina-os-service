@@ -99,7 +99,11 @@ Esperado no fim: `Ambiente '<ambiente>' pronto para uso.` Se o ambiente escolhid
 .\scripts\validar-ambiente.ps1 -SemCarga   # só o Newman
 ```
 
-O script não altera a infraestrutura. Ele para e diz o que fazer se faltar algo: credenciais vencidas ou cluster sem nós (rode o `lab-reiniciado.ps1`), ou pagamento fora do `fake` (rode o `provedor-pagamento.ps1 -Provedor fake`). No fim, mostra um resumo com `[OK]` ou `[ATENÇÃO]` em cada item:
+**Antes de validar:**
+- **Lab reiniciado desde a última execução?** Rode primeiro o `lab-reiniciado.ps1` (seção 4). Sem isso, o script para em `Credenciais AWS vencidas` ou `cluster sem nós`.
+- **Testou o Mercado Pago?** O E2E usa o pagamento simulado, que só existe no `fake`. Se o ambiente estiver no Mercado Pago, o script pergunta `Voltar ao fake agora? [S/N]`. Com `S`, ele faz o passo 3 da seção 6 e segue; com `N`, ele para sem rodar o E2E.
+
+O script só altera o ambiente se você aceitar voltar ao `fake`. No fim, mostra um resumo com `[OK]` ou `[ATENÇÃO]` em cada item:
 
 | Especificação | Como o script comprova | Onde ver a evidência |
 |---|---|---|
@@ -112,6 +116,7 @@ O script não altera a infraestrutura. Ele para e diz o que fazer se faltar algo
 | Carga | smoke k6 com 0% de falha | mesmo run do E2E |
 
 Validações complementares, feitas à mão no [Bootstrap](bootstrap-aws-do-zero-fase4.md):
+- testar pelo Swagger com os tokens de funcionário, técnico e cliente: seção 15.1;
 - Saga passo a passo, com as 4 compensações e o histórico: seção 16;
 - New Relic, com APM dos 3 serviços, cluster, DLQs e Synthetic: seção 18;
 - SonarCloud e cobertura acima de 80%: seção 19.1;
@@ -146,7 +151,7 @@ O script cria uma OS de R$ 5,00 e leva até `AGUARDANDO_PAGAMENTO` pela Saga. De
 
 Volte ao PowerShell e tecle Enter. Esperado: `Mercado Pago validado em '<ambiente>': o webhook chegou e a Saga marcou a OS ... como PAGA.` Para conferir depois uma OS já paga: `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...`.
 
-**3. Voltar ao fake (obrigatório ao terminar):**
+**3. Voltar ao fake (obrigatório ao terminar; o `validar-ambiente.ps1` também oferece):**
 
 ```powershell
 .\scripts\provedor-pagamento.ps1   # escolha o ambiente e o provedor 2 (fake)
@@ -162,7 +167,7 @@ Faça a seção 2 e rode:
 .\scripts\destroy-environment.ps1   # digite o nome do ambiente para confirmar
 ```
 
-O script renova as credenciais sozinho, desliga os gates de deploy e destrói tudo na ordem inversa: Auth → namespaces e LoadBalancers → New Relic → bancos e filas → ENIs das Lambdas → EKS e VPC. A etapa `lambda-enis` costuma levar de 10 a 40 min: deixe o script esperar. Se uma etapa falhar, retome com o comando mostrado, por exemplo `.\scripts\destroy-environment.ps1 -Environment homolog -StartAt lambda-enis`. Os detalhes estão nas seções 22.1 e 26 do Bootstrap.
+O script renova as credenciais sozinho, desliga os gates de deploy e destrói tudo na ordem inversa: Auth → namespaces e LoadBalancers → New Relic → bancos e filas → ENIs das Lambdas → EKS e VPC. A etapa `lambda-enis` costuma levar de 10 a 40 min: deixe o script esperar. Se uma etapa falhar, retome com o comando mostrado, por exemplo `.\scripts\destroy-environment.ps1 -Environment homolog -StartAt lambda-enis`. Os detalhes estão na seção 26 do Bootstrap.
 
 ## 8. Se algo falhar
 
@@ -174,7 +179,7 @@ O script renova as credenciais sozinho, desliga os gates de deploy e destrói tu
 | `Os nós de oficina-<ambiente> não ficaram Ready` | o Academy bloqueou o bootstrap do nó; Bootstrap 21.2 (procure `explicit deny`) |
 | `DEPLOY_ENABLED ... está 'false'` | falta output de um banco: confira os runs `db-*` e retome com `-StartAt configure-bancos` |
 | `O run terminou com 'failure'` | abra o link mostrado, corrija e retome com o comando mostrado |
-| `Pagamento em 'mercadopago'` na validação | `.\scripts\provedor-pagamento.ps1 -Provedor fake` |
+| `Pagamento em 'mercadopago'` na validação | responda `S` para voltar ao `fake`; ou `.\scripts\provedor-pagamento.ps1 -Provedor fake` e valide de novo |
 | `[ATENÇÃO] há mensagem em DLQ` | Bootstrap 16.5 e 16.6 (a 16.6 deixa uma mensagem de propósito) |
 
 ## 9. Parâmetros para pular os menus
