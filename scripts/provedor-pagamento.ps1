@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     mercadopago: grava as credenciais sandbox (configure-environment.ps1 -ConfigureMercadoPago), roda o CD e mostra a URL do webhook.
-    fake: grava PAYMENT_PROVIDER=fake e roda o CD. Com o ambiente fora do ar, só grava a variável: a próxima subida já vem no fake.
+    fake: grava PAYMENT_PROVIDER=fake, renova as credenciais nos GitHub Environments e roda o CD. Com o ambiente fora do ar, só grava a variável: a próxima subida já vem no fake.
     Volte ao fake ao terminar o teste do Mercado Pago: o E2E usa o pagamento simulado.
 
 .EXAMPLE
@@ -40,16 +40,7 @@ if ($Provedor -eq 'mercadopago') {
     if (-not $noAr) {
         throw "O ambiente '$Environment' não está no ar. Suba antes: .\scripts\provision-environment.ps1 -Environment $Environment"
     }
-    # As credenciais do Lab já foram renovadas: o configure lê o arquivo local em vez da área de transferência.
-    $credentialsFile = if (-not [string]::IsNullOrWhiteSpace($env:AWS_SHARED_CREDENTIALS_FILE)) { $env:AWS_SHARED_CREDENTIALS_FILE } else { Join-Path (Join-Path $HOME '.aws') 'credentials' }
-    $configure = @{
-        Environment                              = $Environment
-        ConfigureMercadoPago                     = $true
-        UseAwsAcademyDisposableProductionProfile = $true
-        AwsCredentialsFile                       = $credentialsFile
-    }
-    if (-not [string]::IsNullOrWhiteSpace($RepositoriesRoot)) { $configure.RepositoriesRoot = $RepositoriesRoot }
-    & (Join-Path $PSScriptRoot 'configure-environment.ps1') @configure   # na 1ª vez pede Access Token, Public Key e assinatura do webhook
+    Update-OficinaCredenciais -Ambiente $Environment -RepositoriesRoot $RepositoriesRoot -ConfigureMercadoPago   # na 1ª vez pede Access Token, Public Key e assinatura do webhook
 }
 else {
     $set = Invoke-OficinaNative -Command 'gh' -Arguments @('variable', 'set', 'PAYMENT_PROVIDER', '--repo', "$OficinaOwner/$Repositorio", '--env', $Environment, '--body', 'fake')
@@ -58,6 +49,7 @@ else {
         Write-Host "O ambiente '$Environment' não está no ar: PAYMENT_PROVIDER=fake gravado; a próxima subida já vem no fake." -ForegroundColor Green
         return
     }
+    Update-OficinaCredenciais -Ambiente $Environment -RepositoriesRoot $RepositoriesRoot
 }
 
 $gate = Get-OficinaGitHubVar -Repositorio $Repositorio -Nome 'DEPLOY_ENABLED' -Ambiente $Environment

@@ -1,11 +1,11 @@
 > **Tech Challenge Fase 4 — `fiap-tc-fase4-oficina-os-service`** · documentação central da solução
 
-# Oficina Fase 4 — documentação central
+# Oficina Tech Challenge Fase 4 — documentação central
 
-Este repositório é o ponto de entrada funcional, técnico e acadêmico da Oficina Fase 4. Por ele dá para entender o negócio, a divisão em microsserviços, a Saga, o CI/CD, a subida e a destruição na AWS e as evidências. O detalhe de cada parte fica no README do repositório responsável (seção 3).
+Este repositório é o ponto de entrada funcional e técnico da Oficina Fase 4. Por ele dá para entender o negócio, a divisão em microsserviços, a Saga, o CI/CD, a subida e a destruição na AWS e as evidências. O detalhe de cada parte fica no README do repositório responsável (seção 3).
 
-- **Atendimento ao enunciado, item a item:** [README-requisitos-obrigatorios-fase4.md](README-requisitos-obrigatorios-fase4.md)
-- **Índice das documentações e evidências:** [README-Indice-Evidencia-fase4.md](README-Indice-Evidencia-fase4.md)
+- **Atalho conciso para as documentações e atendimento dos requisitos obrigatório do Tech Challenge - fase 4:** [README-requisitos-obrigatorios-fase4.md](README-requisitos-obrigatorios-fase4.md)
+- **Índice das documentações e evidências: Tech Challenge - Fase 4** [README-Indice-Evidencia-fase4.md](README-Indice-Evidencia-fase4.md)
 
 ## 1. Visão de negócio
 
@@ -60,7 +60,7 @@ Os serviços não acessam o banco uns dos outros. Eles conversam por mensagens S
 
 A visão macro e a arquitetura interna (portas e adaptadores) de cada serviço estão em [Arquitetura da Fase 4](docs-fase4/arquitetura-fase4.md).
 
-## 6. Saga em uma página
+## 6. Padrão Saga Orquestrada
 
 ```text
 OS ─INICIAR_DIAGNOSTICO─▶ Diagnóstico ─DIAGNOSTICO_CONCLUIDO─▶ OS ─GERAR_ORCAMENTO─▶ Orçamento
@@ -248,11 +248,10 @@ Para operar um ambiente só com scripts e menus (subir, retomar depois do Start 
 ## 12. Documentação e evidências
 
 - [Requisitos obrigatórios da Fase 4](README-requisitos-obrigatorios-fase4.md)
-- [Perguntas e respostas do enunciado](README-perguntas-respostas-fase4.md)
 - [Índice das documentações e evidências](README-Indice-Evidencia-fase4.md)
 - [Visão de negócio e engenharia](docs-fase4/visao-negocio-e-engenharia-fase4.md)
 - [Saga: comandos, eventos, compensações e validação](docs-fase4/saga/README.md)
-- [Bootstrap da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)
+- [Bootstrap detalhado da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)
 
 ## 13. Projetos relacionados e histórico
 
