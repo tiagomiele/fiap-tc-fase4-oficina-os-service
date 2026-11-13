@@ -4,7 +4,7 @@ Este roteiro sobe a Fase 4 inteira num AWS Academy Learner Lab vazio, desde as f
 
 Todos os comandos são para **Windows PowerShell 5.1**. Rode os blocos na ordem.
 
-> **Atalho:** os scripts do [Bootstrap automatizado](bootstrap-automatizado-fase4.md) fazem este roteiro com menus (`1` = `homolog`, `2` = `production`): `provision-environment.ps1` sobe o ambiente (seções 7.2 a 15), `lab-reiniciado.ps1` retoma depois de um Start Lab (21), `validar-ambiente.ps1` valida contra as especificações (15, 17 e 19), `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` cuidam do Mercado Pago (20) e `destroy-environment.ps1` destrói (22.1 e 26).
+> **Atalho:** os scripts do [Bootstrap automatizado](bootstrap-automatizado-fase4.md) fazem este roteiro com menus (`1` = `homolog`, `2` = `production`): `provision-environment.ps1` sobe o ambiente (seções 7.2 a 15), `lab-reiniciado.ps1` retoma depois de um Start Lab (21), `validar-ambiente.ps1` valida contra as especificações (15, 17 e 19), `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` cuidam do Mercado Pago (20) e `destroy-environment.ps1` destrói (26).
 
 ## 1. Objetivo e ordem obrigatória
 
@@ -204,7 +204,7 @@ Se o plano do HCP não permitir times, use um *User token* (*Account settings �
 
 ### 4.5 GitHub: token de sincronização entre repos (`REPO_SYNC_TOKEN`)
 
-Os deploys do Kubernetes, do OS-database, do Auth e do OS gravam outputs nos GitHub Environments de outros repos. A Fase 4 **não usa a GitHub App da Fase 3**.
+Os deploys do Kubernetes, do OS-database, do Auth e do OS gravam outputs nos GitHub Environments de outros repos.
 
 1. GitHub → *Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token*.
 2. Nome `oficina-fase4-sync`; expiração depois da entrega; *Resource owner* `tiagomiele`.
@@ -220,7 +220,7 @@ Em https://sonarcloud.io → *My Account → Security*, gere um token. O `-Confi
 
 Tenha em mãos, sem colocá-los em documentos: **Account ID**, **User API key** e **Ingest License key**. O `-ConfigureNewRelic` pede uma vez (as chaves em prompt protegido), grava em `C:\fiap-secrets\shared` e liga o APM nos 3 serviços (`NEW_RELIC_ENABLED=true` + `NEW_RELIC_LICENSE_KEY`), além do dashboard, alertas e telemetria do RDS/DLQ.
 
-### 4.8 Mercado Pago (opcional)
+### 4.8 Mercado Pago
 
 Sem credenciais, o Orçamento e Pagamento usa `PAYMENT_PROVIDER=fake`, que é o necessário para o E2E. As credenciais vêm do painel (https://www.mercadopago.com.br/developers/panel/app), na sua aplicação: *Credenciais de teste* (Access Token e Public Key) e *Webhooks → modo de teste* (assinatura secreta). O comprador é a conta de teste `oficina-cliente`. Não cole esses valores em documentos ou no chat. A ativação, a validação e a volta ao `fake` estão na seção 20, que só roda depois do E2E verde.
 
@@ -269,7 +269,7 @@ Com o `[default]` ainda na área de transferência:
 .\scripts\configure-environment.ps1 -Environment homolog -ConfigureSonarCloud -ConfigureNewRelic
 ```
 
-Se as regras de proteção (`Proteção main`/`Proteção homolog`) já existem nos 6 repos e o script ainda não tem a correção do [fiap-tc-fase4-oficina-os-service#13](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/13), acrescente `-SkipBranchProtection` (evita o HTTP 422 ao tentar recriá-las):
+Se as regras de proteção (`Proteção main`/`Proteção homolog`) já existem nos 6 repos e o script ainda não tem a correção do **fiap-tc-fase4-oficina-os-service/pull/#**, acrescente `-SkipBranchProtection` (evita o HTTP 422 ao tentar recriá-las):
 
 ```powershell
 .\scripts\configure-environment.ps1 -Environment homolog -ConfigureSonarCloud -ConfigureNewRelic -SkipBranchProtection
@@ -504,7 +504,54 @@ Start-Process "$DR/swagger-ui.html"
 Start-Process "$OP/swagger-ui.html"
 ```
 
-## 16. Validação funcional da Saga (manual)
+### 15.1 Tokens para testar pelo Swagger (funcionário, técnico e cliente)
+
+Rode na mesma janela da seção 15, porque o bloco usa as variáveis `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` definidas lá.
+
+| Perfil | Papel no token | Como obter | Validade | Onde usar |
+|---|---|---|---|---|
+| Funcionário (admin) | `FUNCIONARIO_DA_OFICINA` | `POST $OS/auth/login`, com a senha do `backend-admin-password.clixml` | 60 min, ou o valor de `validadeMinutos` | Swagger dos 3 serviços |
+| Técnico | `TECNICO_DA_OFICINA` | o admin cria o usuário com `POST $OS/usuarios`, depois faz `POST $OS/auth/login` | 60 min, ou o valor de `validadeMinutos` | Diagnóstico e Reparo (`/execucoes/**`) e itens/entrega da OS no OS Service |
+| Cliente | `CLIENTE`, emitido pelo Auth Serverless | `POST $GW/auth/cpf`, com o CPF de um cliente ativo | 15 min | consulta e histórico da OS, orçamento e pagamento, só das OS dele; pelo API Gateway (`$GW`) ou pelo Swagger |
+
+```powershell
+. {   # cole o bloco inteiro, na mesma janela da seção 15
+  function J($o) { ,[Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Depth 6)) }
+  $CT = 'application/json; charset=utf-8'
+  $s = Import-Clixml "C:\fiap-secrets\oficina-$Amb\backend-admin-password.clixml"
+  $AdminPwd = if ($s -is [securestring]) { [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) } else { [string]$s }
+
+  # Funcionário (admin)
+  $TokAdmin = (Invoke-RestMethod -Method Post "$OS/auth/login" -ContentType $CT -Body (J @{ email='admin@oficina.local'; senha=$AdminPwd; validadeMinutos=240 })).accessToken
+  $HF = @{ Authorization = "Bearer $TokAdmin" }
+
+  # Técnico: criado na 1ª vez; nas seguintes, o 409 (já existe) é ignorado
+  $TecEmail = "tecnico.swagger.$Amb@oficina.local"; $TecSenha = 'TecnicoSwagger123!'
+  try { Invoke-RestMethod -Method Post "$OS/usuarios" -Headers $HF -ContentType $CT -Body (J @{ email=$TecEmail; senha=$TecSenha; papel='TECNICO_DA_OFICINA' }) | Out-Null }
+  catch { if ($_.Exception.Response.StatusCode.value__ -ne 409) { throw } }
+  $TokTecnico = (Invoke-RestMethod -Method Post "$OS/auth/login" -ContentType $CT -Body (J @{ email=$TecEmail; senha=$TecSenha; validadeMinutos=240 })).accessToken
+
+  # Cliente: usa o 1º cliente ativo com CPF; se não houver, cadastra um
+  $lista = Invoke-RestMethod "$OS/clientes" -Headers $HF   # variável antes do pipe: o PS 5.1 não desmonta a lista direto do Invoke-RestMethod
+  $c = $lista | Where-Object { $_.ativo -and $_.tipoDocumento -eq 'CPF' } | Select-Object -First 1
+  if ($null -eq $c) { $c = Invoke-RestMethod -Method Post "$OS/clientes" -Headers $HF -ContentType $CT -Body (J @{ nome='Cliente Swagger'; documento='52998224725'; email='cliente.swagger@teste.com'; telefone='11999999999' }) }
+  $CpfSwagger = $c.documento
+  $TokCliente = (Invoke-RestMethod -Method Post "$GW/auth/cpf" -ContentType $CT -Body (J @{ cpf=$CpfSwagger })).accessToken
+
+  "Cliente: $($c.nome) (CPF $CpfSwagger, idCliente $($c.idCliente))"
+  "`nFUNCIONARIO:`n$TokAdmin`n`nTECNICO ($TecEmail):`n$TokTecnico`n`nCLIENTE (vale 15 min):`n$TokCliente"
+  Start-Process "$OS/swagger-ui/index.html"; Start-Process "$DR/swagger-ui.html"; Start-Process "$OP/swagger-ui.html"
+}
+```
+
+No Swagger, clique em **Authorize**, cole só o token (sem `Bearer`) e clique em **Authorize** de novo. Cada serviço tem o seu Swagger: autorize em cada aba. Para trocar de perfil, use **Logout** e cole o outro token.
+
+- **Cliente:** o token vale 15 min. Com `401` ou `403`, rode de novo só a linha do `$TokCliente`. Ele só enxerga as OS do próprio cliente; para ter uma OS desse cliente, abra uma com o token do funcionário (`POST /ordens-servico`, com o `idCliente` mostrado) e um veículo dele (`POST /veiculos`).
+- **Técnico e funcionário:** os tokens valem 240 min. Depois disso, rode o bloco de novo.
+- O e-mail e a senha do técnico são fixos, só para o Lab. Para outro técnico, troque `$TecEmail` e `$TecSenha`.
+- O bloco também deixa `$HF`, `J` e `$CT` prontos: dá para seguir direto para a 16.2.
+
+## 16. Validação funcional da Saga (processo manual)
 
 ### 16.1 Login do funcionário
 
@@ -517,7 +564,7 @@ $login = Invoke-RestMethod -Method Post "$OS/auth/login" -ContentType $CT -Body 
 $HF = @{ Authorization = "Bearer $($login.accessToken)" }
 ```
 
-O JWT dura 15 min; com 401/403 no meio do teste, repita as 2 últimas linhas.
+O token do funcionário vale 240 min (`validadeMinutos=240`; sem esse campo, 60 min). Com 401/403 no meio do teste, repita as 2 últimas linhas. O token do cliente (`$HC`, na 16.3) vale 15 min. Tokens de técnico e de cliente para o Swagger: seção 15.1.
 
 ### 16.2 Cadastro: peça com estoque, serviço, cliente e veículo
 
@@ -746,9 +793,11 @@ $Fila | ForEach-Object { "{0}  {1}" -f $_, (Invoke-RestMethod "$DR/execucoes/$_"
 
 ## 17. E2E automatizado (Newman)
 
+> **O que é o Newman:** é a linha de comando do Postman. Ele roda uma coleção do Postman sem abrir o aplicativo e, por isso, funciona no GitHub Actions. Aqui ele roda a coleção `tests/postman/oficina-weeks4-5.postman_collection.json`, que percorre a Saga de ponta a ponta pelas APIs: cadastros, técnico, OS, diagnóstico, orçamento aprovado pelo cliente com JWT no API Gateway, reparo, pagamento `fake` e entrega. Também testa a segurança (sem token, token adulterado, token de outro cliente) e o `correlationId`. Cada requisição tem asserções (`pm.test`); se alguma falha, o run falha. O workflow é o `e2e.yml`, a evidência fica no artefato `newman-<ambiente>-<run>`, e com `run_load_test=true` o mesmo run também executa o smoke k6.
+
 O workflow aquece o login por CPF e o Authorizer antes do Newman, para o cold start das Lambdas não estourar o timeout do API Gateway.
 
-Na 1ª vez, o E2E roda sozinho com o merge do [fiap-tc-fase4-oficina-os-service#14](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/14) (push na `homolog`), que também registra o workflow. Sem isso, o `gh workflow run e2e.yml` responde `HTTP 404: workflow e2e.yml not found on the default branch`, porque a `main` ainda não tem workflows. Depois do 1º run, use os comandos abaixo.
+Na 1ª vez, o E2E roda sozinho com o merge do **fiap-tc-fase4-oficina-os-service#** (push na `homolog`), que também registra o workflow. Sem isso, o `gh workflow run e2e.yml` responde `HTTP 404: workflow e2e.yml not found on the default branch`, porque a `main` ainda não tem workflows. Depois do 1º run, use os comandos abaixo.
 
 **Pelo script (recomendado):** confere nós, health e pagamento `fake`, roda o E2E com o smoke k6 e mostra o resumo das evidências. Funciona nos 2 ambientes, pelo menu:
 
@@ -899,8 +948,6 @@ Só os 3 serviços Java têm SonarCloud (Auth, Kubernetes e Database não). Os p
 
 **Resultado na homologação:** os 3 serviços com Quality Gate **Passed** na `homolog` (Diagnóstico e Reparo com 97,7% de cobertura). Além do SonarCloud, o build dos 3 serviços já falha se a cobertura de linhas ou branches ficar abaixo de 80% (JaCoCo), então CI verde também garante os 80%.
 
-> **Plano do SonarCloud:** a organização está num trial do *Team plan*. Tire os prints de evidência antes de ele vencer. Se depois disso o job SonarCloud passar a falhar na `homolog`, tornar os projetos públicos (*Administration → Project visibility*) resolve sem custo.
-
 O link também aparece no log do job **SonarCloud** do CI, na linha `QUALITY GATE STATUS: PASSED - View details on https://sonarcloud.io/dashboard?id=...`. Se o job mostrar só o passo **SonarCloud pendente** (`SONAR_TOKEN não configurado`), a análise não rodou:
 1. confira se o projeto existe em *sonarcloud.io → organização tiagomiele → Projects*. Se não existir, crie em **+ → Analyze new project**, marque o repositório, clique em *Set up* e, em *Administration → Analysis Method*, desligue o **Automatic Analysis** (a análise é feita pelo CI);
 2. rode o `-ConfigureSonarCloud` (4.6) para cadastrar o `SONAR_TOKEN`;
@@ -932,11 +979,13 @@ O artefato fica disponível por 90 dias. Se ele tiver expirado, rode o BDD de no
 
 ## 20. Validação manual do Mercado Pago sandbox (depois do E2E verde)
 
+> **Observações** nos testes automatizados estamos utilizando os valores entre 5 e 10 reias para não gastar os créditos do sandbox.
+
 > **Atalho (qualquer ambiente):** depois de ligar o Mercado Pago (20.1) e cadastrar o webhook (20.2), `.\scripts\pagamento-mercadopago.ps1` faz o 20.3 e o 20.4 sozinho: cria a OS de R$ 5,00 até `AGUARDANDO_PAGAMENTO`, copia o link, espera você pagar com o titular `APRO` e confere se a OS ficou `PAGA`. Para conferir depois: `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...` (sem `< >`). Se o primeiro pagamento for recusado, pode tentar de novo no mesmo link: a aprovação posterior confirma a OS. Ao terminar, faça o 20.6.
 
 **Quando:** só depois que o run do E2E do passo 17 terminar com sucesso. O `gh run watch` do 17 termina com `✓ ... completed with 'success'`. No GitHub (*Actions → E2E*), o run aparece com o ícone verde ✓. Para conferir depois, rode `gh run list --repo tiagomiele/fiap-tc-fase4-oficina-os-service --workflow e2e.yml --limit 1`, que deve mostrar `completed  success`. Se aparecer `failure` (ícone vermelho ✗), não siga para esta seção: corrija o E2E antes. O E2E e os cenários do 16 usam `PAYMENT_PROVIDER=fake` e o `/pagamentos/{n}/simular`. Com o Mercado Pago ligado, esse endpoint não existe. Por isso a ordem é: 16 → 17 → **20** → voltar ao `fake` (20.6). O Newman não testa o Mercado Pago real, porque no Checkout Pro uma pessoa precisa abrir o link e pagar. Esta seção pode ser repetida quantas vezes quiser.
 
-**Valor máximo de R$ 10 por pagamento:** o valor cobrado é o total do orçamento, ou seja, a soma dos serviços e peças lançados na OS. As OS do 16 custam R$ 150 ou mais. Aqui, cada OS leva só um serviço de **R$ 5,00**, sem peça, e a função do 20.3 para antes de aprovar se o orçamento passar de R$ 10. Uma rodada completa (20.4 + 20.5) aprova 2 pagamentos de R$ 5,00. O pagamento recusado não é cobrado.
+**Valor máximo de 10,00 reais por pagamento:** o valor cobrado é o total do orçamento, ou seja, a soma dos serviços e peças lançados na OS. As OS do 16 custam 150,00 reais ou mais. Aqui, cada OS leva só um serviço de **5,00 reais**, sem peça, e a função do 20.3 para antes de aprovar se o orçamento passar de 10,00 reais. Uma rodada completa (20.4 + 20.5) aprova 2 pagamentos de R$ 5,00. O pagamento recusado não é cobrado.
 
 **Pré-requisitos**
 - credenciais de teste do vendedor (4.8): Access Token, Public Key e assinatura secreta do webhook;
@@ -961,7 +1010,17 @@ No painel (https://www.mercadopago.com.br/developers/panel/app → sua aplicaç�
 
 A URL muda sempre que o ambiente é recriado (API Gateway novo). Depois de cada recriação, refaça este passo. O painel aceita uma URL por vez: aponte para o ambiente que está testando.
 
-### 20.3 Serviço de R$ 5,00 e função auxiliar
+### 20.2.1 Pagar pelo script (caminho recomendado)
+
+```powershell
+.\scripts\pagamento-mercadopago.ps1   # escolha o mesmo ambiente do 20.1
+```
+
+O script cria a OS de R$ 5,00 até `AGUARDANDO_PAGAMENTO` e copia o link. **Pague primeiro** (janela anônima, comprador de teste, titular `APRO`, dados da tabela do 20.3) e **só depois** tecle Enter: ele confere se a OS ficou `PAGA`. Se teclou Enter antes, use `Ctrl+C`, pague e confira com `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...`. Depois, **pule para o 20.6**.
+
+> **Os passos 20.3 a 20.5 abaixo são o roteiro manual (opcional)**, para testar a recusa (`OTHE`) e a nova tentativa. Eles só funcionam depois das seções 15, 16.1 e 16.2 rodadas no mesmo ambiente e na mesma janela do PowerShell; com variáveis de outra rodada, as chamadas falham com `O nome remoto não pôde ser resolvido`.
+
+### 20.3 Serviço de R$ 5,00 e função auxiliar (manual)
 
 As 2 primeiras linhas renovam o token do funcionário (`$HF`), que já pode ter vencido desde o 16.1 (OS Service `403` e Diagnóstico e Reparo `401`).
 
@@ -1189,71 +1248,11 @@ Os passos 2 a 11 abaixo são executados de uma vez pelo `.\scripts\provision-env
 13. Mercado Pago sandbox (20.1 a 20.5) e volta ao fake (20.6)
 ```
 
-### 22.1 Destruir a homologação para recomeçar do zero
+### 22.1 Destruir o ambiente
 
-**Automático (recomendado):** no AWS Academy, clique em **Start Lab**, mesmo com o Lab ativo, vá em **AWS Details → AWS CLI → Show** e copie o bloco `[default]`. Logo em seguida, rode o bloco abaixo, na pasta do OS Service. O script confere o `[default]`, renova as credenciais (computador, HCP e GitHub), executa as etapas 1 a 8, uma de cada vez, e espera cada uma terminar:
+Veja a [seção 26](#26-destruir-a-infraestrutura-para-economizar-créditos-aws): o roteiro de destruição (automático, manual e troubleshooting) fica todo lá.
 
-```powershell
-git pull
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\destroy-environment.ps1   # escolha o ambiente no menu e digite o nome dele para confirmar
-```
-
-Se uma etapa falhar, corrija a causa e retome de onde parou. Rode um comando por vez, sem colar duas vezes na mesma linha:
-
-```powershell
-.\scripts\destroy-environment.ps1 -Environment homolog -StartAt lambda-enis
-```
-
-Para confirmar que a credencial vale de verdade, o script lê as filas SQS: o `aws sts get-caller-identity` continua respondendo mesmo depois que o Lab cancela a credencial (`voc-cancel-cred`), então ele não serve para essa checagem. A etapa `lambda-enis` costuma ficar de 10 a 40 min mostrando `ENI(s) de Lambda ainda na VPC; aguardando...`. Isso é normal: deixe o script esperar.
-
-O script aceita `homolog` e `production` (produção só com o perfil descartável do AWS Academy; o perfil endurecido, com `deletion_protection`, é recusado) e só mexe nos workspaces `oficina-fase4-*-<ambiente>` do projeto da Fase 4. Ele desliga os gates de deploy (`TF_APPLY_ENABLED`, `ENABLE_TERRAFORM_APPLY`, `DEPLOY_ENABLED`) antes de destruir, pula os workspaces que já estão vazios e pode ser rodado de novo sem risco. Etapas, na ordem: `auth` → `namespaces` → `newrelic` → `db-diagnostico-reparo` → `db-orcamento-pagamento` → `db-os` → `lambda-enis` → `kubernetes` → `verificacao`.
-
-A destruição segue a ordem inversa da criação. Os bancos e o Auth usam a VPC do workspace Kubernetes. Os 3 LoadBalancers foram criados pelo Kubernetes, fora do Terraform. Por isso o EKS/VPC é sempre o **último** a ser destruído.
-
-**0. Credenciais.** Start Lab, copie o `[default]` e rode `configure-environment.ps1 -Environment homolog`. O destroy no HCP usa o Variable Set `aws-academy-credentials-fase4`, que precisa estar com credenciais válidas.
-
-**1. Auth/API Gateway:** destrua o workspace `oficina-fase4-auth-homolog`. As Lambdas ficam na VPC, e a AWS leva de 10 a 40 min para liberar as interfaces de rede (ENIs) delas.
-
-**2. Apps no EKS** (remove os 3 LoadBalancers e os security groups deles):
-
-```powershell
-aws eks update-kubeconfig --region us-west-2 --name oficina-homolog
-kubectl delete namespace oficina-homolog oficina-orcamento-pagamento-homolog oficina-diagnostico-reparo-homolog --wait=true --timeout=10m
-aws elb describe-load-balancers --region us-west-2 --query 'LoadBalancerDescriptions[].LoadBalancerName'   # vazio
-```
-
-**3. New Relic:** `oficina-fase4-newrelic-homolog` (dashboard, alertas e Synthetic).
-
-**4 a 6. Bancos e filas:** `oficina-fase4-db-diagnostico-reparo-homolog`, depois `oficina-fase4-db-orcamento-pagamento-homolog` e por fim `oficina-fase4-db-os-homolog`. Em homolog, `deletion_protection = false` e `skip_final_snapshot = true`, então não fica snapshot. Cada RDS leva de 5 a 10 min.
-
-**7. Kubernetes/EKS/VPC:** antes, confirme que as ENIs das Lambdas foram liberadas. Depois, destrua o workspace `oficina-fase4-kubernetes-homolog`, que leva de 15 a 20 min.
-
-```powershell
-aws ec2 describe-network-interfaces --region us-west-2 --filters "Name=interface-type,Values=lambda" --query 'length(NetworkInterfaces)'   # 0
-```
-
-**Como destruir cada workspace:** em `https://app.terraform.io/app/oficina-fiap-soat-fase-2/workspaces/<workspace>/settings/delete`, vá em *Queue destroy plan* e depois em *Confirm & apply*. Espere terminar (`Applied`) antes de passar ao próximo. Não apague os workspaces nem o Variable Set, porque o bootstrap reaproveita os dois.
-
-**8. Conferência final:**
-
-```powershell
-aws eks list-clusters --region us-west-2                                                  # sem oficina-homolog
-aws rds describe-db-instances --region us-west-2 --query 'DBInstances[].DBInstanceIdentifier'
-aws dynamodb list-tables --region us-west-2                                               # sem oficina-homolog-execucoes
-aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog-               # vazio
-```
-
-**Troubleshooting do destroy**
-- **O destroy do Kubernetes falha em subnet ou security group com `DependencyViolation`:** ainda há um LoadBalancer ou uma ENI de Lambda na VPC. Repita o passo 2, espere as ENIs e faça um novo *Queue destroy plan*. Não apague recursos pelo console.
-- **O run de destroy falha com `ExpiredToken` ou `voc-cancel-cred`:** a sessão do Lab expirou no meio. Renove as credenciais (passo 0) e faça um novo *Queue destroy plan* no mesmo workspace. O destroy continua de onde parou.
-- **O destroy do Auth (ou outro) falha no plan com `AccessDenied ... voc-cancel-cred`:** o Variable Set do HCP está com credenciais de uma sessão antiga do Lab. Dê Start Lab, copie o `[default]` e retome com `-StartAt <etapa>` (o script renova as credenciais antes de seguir).
-- **O destroy do New Relic falha no plan com `408 response returned`:** foi um timeout da API do New Relic. Retome com `-StartAt newrelic`. Se o erro se repetir, espere uns 5 min antes de tentar de novo.
-- **No novo apply, `ResourceAlreadyExistsException` em um log group do CloudWatch:** o log group foi recriado pela AWS depois do destroy. Apague-o (`aws logs delete-log-group --region us-west-2 --log-group-name <nome>`) e rode o workflow de novo.
-
-**Para recriar:** comece pela seção 6 (sessão AWS Academy) e siga o resumo da seção 22. A seção 4 (preparação permanente) não precisa ser repetida.
-
-## 23. Produção (somente depois da homologação aprovada)
+## 23. Produção (validações após homologação aprovada)
 
 Mesma cadeia, com `main` e o Environment `production`:
 
@@ -1364,10 +1363,9 @@ Não incluído nesta versão: os scripts de conexão DBeaver da Fase 3 (`CONECTA
 
 ## 26. Destruir a infraestrutura para economizar créditos AWS
 
-Faça isso sempre ao terminar uma demonstração. EKS, NAT Gateway, 2 RDS e 3 LoadBalancers cobram por hora, mesmo sem uso.
+Faça isso sempre ao terminar uma demonstração. EKS, NAT Gateway, 2 RDS e 3 LoadBalancers cobram por hora, mesmo sem uso. Um ambiente por vez; vale para `homolog` e `production` (produção só com o perfil descartável do AWS Academy).
 
-1. **Renove a sessão:** Start Lab → *AWS Details → AWS CLI → Show* → copie o `[default]`.
-2. **Destrua, um ambiente por vez:**
+**Automático (recomendado):** no AWS Academy, clique em **Start Lab**, mesmo com o Lab ativo, vá em **AWS Details → AWS CLI → Show** e copie o bloco `[default]`. Logo em seguida, rode o bloco abaixo, na pasta do OS Service. O script confere o `[default]`, renova as credenciais (computador, HCP e GitHub), executa as etapas 1 a 8, uma de cada vez, e espera cada uma terminar:
 
 ```powershell
 git pull
@@ -1375,19 +1373,56 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\destroy-environment.ps1   # escolha o ambiente no menu e digite o nome dele para confirmar
 ```
 
-O script renova as credenciais sozinho (lê o `[default]` copiado) e só aceita produção com o perfil descartável do AWS Academy. Para destruir o outro ambiente, copie o `[default]` de novo e rode o script outra vez.
-
-3. **Se uma etapa falhar** (token expirado, `408` do New Relic, ENI presa): corrija a causa e retome da etapa, por exemplo `.\scripts\destroy-environment.ps1 -Environment production -StartAt lambda-enis`. Detalhes e troubleshooting em 22.1.
-4. **Confira que não sobrou nada.** O script já faz isso na etapa `verificacao`; para conferir à mão (troque `homolog` por `production` se for o caso):
+Se uma etapa falhar, corrija a causa e retome de onde parou. Rode um comando por vez, sem colar duas vezes na mesma linha:
 
 ```powershell
-aws eks list-clusters --region us-west-2
-aws rds describe-db-instances --region us-west-2 --query 'DBInstances[].DBInstanceIdentifier'
-aws dynamodb list-tables --region us-west-2
-aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog-
-aws elb describe-load-balancers --region us-west-2 --query 'LoadBalancerDescriptions[].LoadBalancerName'
-aws ec2 describe-nat-gateways --region us-west-2 --filter Name=state,Values=available --query 'NatGateways[].NatGatewayId'
+.\scripts\destroy-environment.ps1 -Environment homolog -StartAt lambda-enis
 ```
 
-Todas as listas devem voltar vazias. Os workspaces HCP, variáveis, secrets e o código continuam; para subir de novo, siga a seção 22 (homologação) ou 23 (produção).
+Para confirmar que a credencial vale de verdade, o script lê as filas SQS: o `aws sts get-caller-identity` continua respondendo mesmo depois que o Lab cancela a credencial (`voc-cancel-cred`), então ele não serve para essa checagem. A etapa `lambda-enis` costuma ficar de 10 a 40 min mostrando `ENI(s) de Lambda ainda na VPC; aguardando...`. Isso é normal: deixe o script esperar.
 
+O script aceita `homolog` e `production` (produção só com o perfil descartável do AWS Academy; o perfil endurecido, com `deletion_protection`, é recusado) e só mexe nos workspaces `oficina-fase4-*-<ambiente>` do projeto da Fase 4. Ele desliga os gates de deploy (`TF_APPLY_ENABLED`, `ENABLE_TERRAFORM_APPLY`, `DEPLOY_ENABLED`) antes de destruir, pula os workspaces que já estão vazios e pode ser rodado de novo sem risco. Etapas, na ordem: `auth` → `namespaces` → `newrelic` → `db-diagnostico-reparo` → `db-orcamento-pagamento` → `db-os` → `lambda-enis` → `kubernetes` → `verificacao`.
+
+A destruição segue a ordem inversa da criação. Os bancos e o Auth usam a VPC do workspace Kubernetes. Os 3 LoadBalancers foram criados pelo Kubernetes, fora do Terraform. Por isso o EKS/VPC é sempre o **último** a ser destruído.
+
+**0. Credenciais.** Start Lab, copie o `[default]` e rode `configure-environment.ps1 -Environment homolog`. O destroy no HCP usa o Variable Set `aws-academy-credentials-fase4`, que precisa estar com credenciais válidas.
+
+**1. Auth/API Gateway:** destrua o workspace `oficina-fase4-auth-homolog`. As Lambdas ficam na VPC, e a AWS leva de 10 a 40 min para liberar as interfaces de rede (ENIs) delas.
+
+**2. Apps no EKS** (remove os 3 LoadBalancers e os security groups deles):
+
+```powershell
+aws eks update-kubeconfig --region us-west-2 --name oficina-homolog
+kubectl delete namespace oficina-homolog oficina-orcamento-pagamento-homolog oficina-diagnostico-reparo-homolog --wait=true --timeout=10m
+aws elb describe-load-balancers --region us-west-2 --query 'LoadBalancerDescriptions[].LoadBalancerName'   # vazio
+```
+
+**3. New Relic:** `oficina-fase4-newrelic-homolog` (dashboard, alertas e Synthetic).
+
+**4 a 6. Bancos e filas:** `oficina-fase4-db-diagnostico-reparo-homolog`, depois `oficina-fase4-db-orcamento-pagamento-homolog` e por fim `oficina-fase4-db-os-homolog`. Em homolog, `deletion_protection = false` e `skip_final_snapshot = true`, então não fica snapshot. Cada RDS leva de 5 a 10 min.
+
+**7. Kubernetes/EKS/VPC:** antes, confirme que as ENIs das Lambdas foram liberadas. Depois, destrua o workspace `oficina-fase4-kubernetes-homolog`, que leva de 15 a 20 min.
+
+```powershell
+aws ec2 describe-network-interfaces --region us-west-2 --filters "Name=interface-type,Values=lambda" --query 'length(NetworkInterfaces)'   # 0
+```
+
+**Como destruir cada workspace:** em `https://app.terraform.io/app/oficina-fiap-soat-fase-2/workspaces/<workspace>/settings/delete`, vá em *Queue destroy plan* e depois em *Confirm & apply*. Espere terminar (`Applied`) antes de passar ao próximo. Não apague os workspaces nem o Variable Set, porque o bootstrap reaproveita os dois.
+
+**8. Conferência final:**
+
+```powershell
+aws eks list-clusters --region us-west-2                                                  # sem oficina-homolog
+aws rds describe-db-instances --region us-west-2 --query 'DBInstances[].DBInstanceIdentifier'
+aws dynamodb list-tables --region us-west-2                                               # sem oficina-homolog-execucoes
+aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog-               # vazio
+```
+
+**Troubleshooting do destroy**
+- **O destroy do Kubernetes falha em subnet ou security group com `DependencyViolation`:** ainda há um LoadBalancer ou uma ENI de Lambda na VPC. Repita o passo 2, espere as ENIs e faça um novo *Queue destroy plan*. Não apague recursos pelo console.
+- **O run de destroy falha com `ExpiredToken` ou `voc-cancel-cred`:** a sessão do Lab expirou no meio. Renove as credenciais (passo 0) e faça um novo *Queue destroy plan* no mesmo workspace. O destroy continua de onde parou.
+- **O destroy do Auth (ou outro) falha no plan com `AccessDenied ... voc-cancel-cred`:** o Variable Set do HCP está com credenciais de uma sessão antiga do Lab. Dê Start Lab, copie o `[default]` e retome com `-StartAt <etapa>` (o script renova as credenciais antes de seguir).
+- **O destroy do New Relic falha no plan com `408 response returned`:** foi um timeout da API do New Relic. Retome com `-StartAt newrelic`. Se o erro se repetir, espere uns 5 min antes de tentar de novo.
+- **No novo apply, `ResourceAlreadyExistsException` em um log group do CloudWatch:** o log group foi recriado pela AWS depois do destroy. Apague-o (`aws logs delete-log-group --region us-west-2 --log-group-name <nome>`) e rode o workflow de novo.
+
+**Para recriar:** comece pela seção 6 (sessão AWS Academy) e siga o resumo da seção 22. A seção 4 (preparação permanente) não precisa ser repetida.

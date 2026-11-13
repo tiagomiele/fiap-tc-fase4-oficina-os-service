@@ -5,11 +5,11 @@
 .DESCRIPTION
     1. credenciais, nós e os 3 serviços prontos;
     2. health UP dos 3 serviços e URL do API Gateway;
-    3. pagamento no fake (o E2E usa o pagamento simulado);
+    3. pagamento no fake (o E2E usa o pagamento simulado); se estiver no Mercado Pago, oferece voltar ao fake (S/N);
     4. E2E no GitHub Actions: Saga completa até ENTREGUE, segurança do API Gateway, correlationId e, por padrão, carga k6;
        e o último run do BDD da Saga (compensações) na branch do ambiente;
     5. DLQs das 3 filas vazias.
-    Não altera a infraestrutura.
+    Renova as credenciais AWS nos GitHub Environments antes do E2E; só altera o ambiente se você aceitar voltar ao fake no passo 3.
 
 .EXAMPLE
     .\scripts\validar-ambiente.ps1
@@ -21,6 +21,7 @@ param(
     [string]$Environment,
     # Não roda o smoke de carga k6 depois do Newman.
     [switch]$SemCarga,
+    [string]$RepositoriesRoot,
     [string]$Region = 'us-west-2'
 )
 
@@ -52,9 +53,21 @@ Write-Host '== 3/5 pagamento'
 $pagamento = Get-OficinaPagamentoConfig -Ambiente $Environment
 if ($null -eq $pagamento) { throw "ConfigMap do Orçamento e Pagamento não encontrado em oficina-orcamento-pagamento-$Environment." }
 if ($pagamento.Provedor -ne 'fake') {
-    throw "Pagamento em '$($pagamento.Provedor)': o E2E usa o pagamento simulado. Rode .\scripts\provedor-pagamento.ps1 -Environment $Environment -Provedor fake e valide de novo."
+    # O E2E usa o pagamento simulado (/pagamentos/{n}/simular), que só existe no fake.
+    Write-Host "  Pagamento em '$($pagamento.Provedor)': o E2E precisa do fake." -ForegroundColor Yellow
+    $resposta = Read-Host 'Voltar ao fake agora (roda o CD do Orçamento e Pagamento, de 3 a 15 min)? [S/N]'
+    if ("$resposta".Trim().ToLowerInvariant() -notin @('s', 'sim')) {
+        throw "Validação interrompida. Para voltar ao fake depois: .\scripts\provedor-pagamento.ps1 -Environment $Environment -Provedor fake"
+    }
+    & (Join-Path $PSScriptRoot 'provedor-pagamento.ps1') -Environment $Environment -Provedor fake -Region $Region -RepositoriesRoot $RepositoriesRoot
+    $pagamento = Get-OficinaPagamentoConfig -Ambiente $Environment
+    if ($null -eq $pagamento -or $pagamento.Provedor -ne 'fake') { throw 'O pagamento não voltou ao fake. Veja o run do CD mostrado acima.' }
 }
 Write-Host '  fake'
+
+Write-Host ''
+Write-Host '== credenciais nos GitHub Environments (o E2E roda no GitHub Actions)'
+Update-OficinaCredenciais -Ambiente $Environment -RepositoriesRoot $RepositoriesRoot
 
 Write-Host ''
 $carga = if ($SemCarga) { 'false' } else { 'true' }
