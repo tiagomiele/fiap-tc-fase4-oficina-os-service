@@ -4,7 +4,68 @@ Este roteiro sobe a Fase 4 inteira num AWS Academy Learner Lab vazio, desde as f
 
 Todos os comandos são para **Windows PowerShell 5.1**. Rode os blocos na ordem.
 
-> **Atalho:** os scripts do [Bootstrap automatizado](bootstrap-automatizado-fase4.md) fazem este roteiro com menus (`1` = `homolog`, `2` = `production`): `provision-environment.ps1` sobe o ambiente (seções 7.2 a 15), `lab-reiniciado.ps1` retoma depois de um Start Lab (21), `validar-ambiente.ps1` valida contra as especificações (15, 17 e 19), `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` cuidam do Mercado Pago (20) e `destroy-environment.ps1` destrói (26).
+> **Atalho:** os scripts do [Bootstrap automatizado](bootstrap-automatizado-fase4.md) fazem este roteiro com menus (`1` = `homolog`, `2` = `production`): `provision-environment.ps1` sobe o ambiente (seções [7.2](#72-execução-real) a [15](#15-validar-a-saúde-técnica)), `lab-reiniciado.ps1` retoma depois de um Start Lab (21), `validar-ambiente.ps1` valida contra as especificações (15, 17 e 19), `provedor-pagamento.ps1` e `pagamento-mercadopago.ps1` cuidam do Mercado Pago (20) e `destroy-environment.ps1` destrói (26).
+
+## Índice
+
+- [1. Objetivo e ordem obrigatória](#1-objetivo-e-ordem-obrigatória)
+- [2. Regras de segurança](#2-regras-de-segurança)
+- [3. Repositórios e recursos](#3-repositórios-e-recursos)
+- [4. Preparação permanente (uma vez por computador/conta)](#4-preparação-permanente-uma-vez-por-computadorconta)
+  - [4.1 Ferramentas no Windows](#41-ferramentas-no-windows)
+  - [4.2 GitHub](#42-github)
+  - [4.3 Clonar os 6 repositórios lado a lado](#43-clonar-os-6-repositórios-lado-a-lado)
+  - [4.4 HCP Terraform: Team token exclusivo do projeto da Fase 4](#44-hcp-terraform-team-token-exclusivo-do-projeto-da-fase-4)
+  - [4.5 GitHub: token de sincronização entre repos (`REPO_SYNC_TOKEN`)](#45-github-token-de-sincronização-entre-repos-repo_sync_token)
+  - [4.6 SonarCloud](#46-sonarcloud)
+  - [4.7 New Relic](#47-new-relic)
+  - [4.8 Mercado Pago](#48-mercado-pago)
+- [5. Liberar o Learner Lab da Fase 3 (se ela ainda estiver de pé)](#5-liberar-o-learner-lab-da-fase-3-se-ela-ainda-estiver-de-pé)
+- [6. Iniciar uma sessão AWS Academy](#6-iniciar-uma-sessão-aws-academy)
+- [7. Bootstrap de homologação](#7-bootstrap-de-homologação)
+  - [7.1 Validação (não altera nada)](#71-validação-não-altera-nada)
+  - [7.2 Execução real](#72-execução-real)
+  - [7.3 Conferir HCP e GitHub](#73-conferir-hcp-e-github)
+  - [7.4 Função auxiliar para disparar e acompanhar workflows](#74-função-auxiliar-para-disparar-e-acompanhar-workflows)
+- [8. Kubernetes/EKS e observabilidade inicial](#8-kuberneteseks-e-observabilidade-inicial)
+- [9. Bancos e filas (database-infra)](#9-bancos-e-filas-database-infra)
+- [10. Teste da LabRole (pod → SQS e DynamoDB)](#10-teste-da-labrole-pod--sqs-e-dynamodb)
+- [11. Auth/API Gateway (1º apply)](#11-authapi-gateway-1º-apply)
+- [12. CD dos 3 serviços](#12-cd-dos-3-serviços)
+- [13. Auth (2º apply: rotas dos serviços e webhook)](#13-auth-2º-apply-rotas-dos-serviços-e-webhook)
+- [14. Kubernetes (2º run: Synthetic com o health final)](#14-kubernetes-2º-run-synthetic-com-o-health-final)
+- [15. Validar a saúde técnica](#15-validar-a-saúde-técnica)
+  - [15.1 Tokens para testar pelo Swagger (funcionário, técnico e cliente)](#151-tokens-para-testar-pelo-swagger-funcionário-técnico-e-cliente)
+- [16. Validação funcional da Saga (processo manual)](#16-validação-funcional-da-saga-processo-manual)
+  - [16.1 Login do funcionário](#161-login-do-funcionário)
+  - [16.2 Cadastro: peça com estoque, serviço, cliente e veículo](#162-cadastro-peça-com-estoque-serviço-cliente-e-veículo)
+  - [16.3 Fluxo feliz](#163-fluxo-feliz)
+  - [16.4 Compensações](#164-compensações)
+  - [16.5 Mensageria, DLQ e DynamoDB](#165-mensageria-dlq-e-dynamodb)
+  - [16.6 Ver uma mensagem parada na fila (opcional)](#166-ver-uma-mensagem-parada-na-fila-opcional)
+- [17. E2E automatizado (Newman)](#17-e2e-automatizado-newman)
+- [18. New Relic](#18-new-relic)
+- [19. Checklist final de homologação](#19-checklist-final-de-homologação)
+  - [19.1 SonarCloud](#191-sonarcloud)
+  - [19.2 BDD da Saga](#192-bdd-da-saga)
+- [20. Validação manual do Mercado Pago sandbox (depois do E2E verde)](#20-validação-manual-do-mercado-pago-sandbox-depois-do-e2e-verde)
+  - [20.1 Ligar o Mercado Pago](#201-ligar-o-mercado-pago)
+  - [20.2 Cadastrar o webhook no painel](#202-cadastrar-o-webhook-no-painel)
+  - [20.2.1 Pagar pelo script (caminho recomendado)](#2021-pagar-pelo-script-caminho-recomendado)
+  - [20.3 Serviço de R$ 5,00 e função auxiliar (manual)](#203-serviço-de-r-500-e-função-auxiliar-manual)
+  - [20.4 Pagamento aprovado (`APRO`)](#204-pagamento-aprovado-apro)
+  - [20.5 Pagamento recusado (`OTHE`) e nova tentativa](#205-pagamento-recusado-othe-e-nova-tentativa)
+  - [20.6 Voltar ao `fake` (obrigatório ao terminar)](#206-voltar-ao-fake-obrigatório-ao-terminar)
+- [21. Sessão do Lab expirou ou foi reiniciada (`ExpiredToken`, `voc-cancel-cred`)](#21-sessão-do-lab-expirou-ou-foi-reiniciada-expiredtoken-voc-cancel-cred)
+  - [21.1 Renovar a sessão, as credenciais e os nós](#211-renovar-a-sessão-as-credenciais-e-os-nós)
+  - [21.2 Conferir se os nós do EKS voltaram](#212-conferir-se-os-nós-do-eks-voltaram)
+  - [21.3 Retomar](#213-retomar)
+- [22. Resumo operacional mínimo (reconstrução com tudo já preparado)](#22-resumo-operacional-mínimo-reconstrução-com-tudo-já-preparado)
+  - [22.1 Destruir o ambiente](#221-destruir-o-ambiente)
+- [23. Produção (validações após homologação aprovada)](#23-produção-validações-após-homologação-aprovada)
+- [24. Critérios de parada e troubleshooting](#24-critérios-de-parada-e-troubleshooting)
+- [25. Matriz de sincronização](#25-matriz-de-sincronização)
+- [26. Destruir a infraestrutura para economizar créditos AWS](#26-destruir-a-infraestrutura-para-economizar-créditos-aws)
 
 ## 1. Objetivo e ordem obrigatória
 
@@ -31,7 +92,7 @@ Diferenças em relação à Fase 3:
 | HCP project `soat-fase3`, `terraform login` | projeto HCP exclusivo `prj-UTzD6p6PqRVEr27C`, Team token próprio |
 | GitHub App `SYNC_APP_CLIENT_ID`/`SYNC_APP_PRIVATE_KEY` | token fine-grained `REPO_SYNC_TOKEN` (o script cadastra) |
 | 1 RDS | 2 RDS + 1 DynamoDB + 3 filas SQS com DLQ |
-| script só no bootstrap | script também depois dos bancos e do 1º Auth, porque nem todo output é sincronizado pelos workflows (seção 25) |
+| script só no bootstrap | script também depois dos bancos e do 1º Auth, porque nem todo output é sincronizado pelos workflows (seção [25](#25-matriz-de-sincronização)) |
 
 > **Custos:** EKS, 2 RDS, NAT Gateway, 3 LoadBalancers e telemetria consomem o orçamento do Learner Lab. Destrua o ambiente pelos workspaces HCP quando terminar; nunca apague recursos soltos pelo console.
 
@@ -44,7 +105,7 @@ Diferenças em relação à Fase 3:
 5. Não versione `C:\fiap-secrets`, `.env`, `.pem` nem states Terraform.
 6. Não ative Auto Apply nos workspaces HCP.
 7. Se um plan mostrar destruição inesperada, cancele o run e pare.
-8. Se a sessão AWS expirar, renove pelo script (seção 21) e repita só o workflow que falhou.
+8. Se a sessão AWS expirar, renove pelo script (seção [21](#21-sessão-do-lab-expirou-ou-foi-reiniciada-expiredtoken-voc-cancel-cred)) e repita só o workflow que falhou.
 9. Não exclua recursos manualmente para corrigir divergências de Terraform.
 10. Os workflows de deploy também disparam em `push` para `homolog`/`main`. Faça merges só quando o ambiente estiver pronto para receber o deploy.
 
@@ -222,7 +283,7 @@ Tenha em mãos, sem colocá-los em documentos: **Account ID**, **User API key** 
 
 ### 4.8 Mercado Pago
 
-Sem credenciais, o Orçamento e Pagamento usa `PAYMENT_PROVIDER=fake`, que é o necessário para o E2E. As credenciais vêm do painel (https://www.mercadopago.com.br/developers/panel/app), na sua aplicação: *Credenciais de teste* (Access Token e Public Key) e *Webhooks → modo de teste* (assinatura secreta). O comprador é a conta de teste `oficina-cliente`. Não cole esses valores em documentos ou no chat. A ativação, a validação e a volta ao `fake` estão na seção 20, que só roda depois do E2E verde.
+Sem credenciais, o Orçamento e Pagamento usa `PAYMENT_PROVIDER=fake`, que é o necessário para o E2E. As credenciais vêm do painel (https://www.mercadopago.com.br/developers/panel/app), na sua aplicação: *Credenciais de teste* (Access Token e Public Key) e *Webhooks → modo de teste* (assinatura secreta). O comprador é a conta de teste `oficina-cliente`. Não cole esses valores em documentos ou no chat. A ativação, a validação e a volta ao `fake` estão na seção [20](#20-validação-manual-do-mercado-pago-sandbox-depois-do-e2e-verde), que só roda depois do E2E verde.
 
 ## 5. Liberar o Learner Lab da Fase 3 (se ela ainda estiver de pé)
 
@@ -233,7 +294,7 @@ aws eks list-clusters --region us-west-2
 aws rds describe-db-instances --region us-west-2 --query 'DBInstances[].DBInstanceIdentifier'
 ```
 
-Os dois devem voltar vazios antes da seção 8.
+Os dois devem voltar vazios antes da seção [8](#8-kuberneteseks-e-observabilidade-inicial).
 
 ## 6. Iniciar uma sessão AWS Academy
 
@@ -352,7 +413,7 @@ Para avançar:
 - passo "Sincronizar outputs de rede com Database e Auth" verde;
 - add-ons e observabilidade verdes, sem destruição inesperada.
 
-O Synthetic fica desligado neste 1º run, porque o OS ainda não tem LoadBalancer (é ligado na seção 14).
+O Synthetic fica desligado neste 1º run, porque o OS ainda não tem LoadBalancer (é ligado na seção [14](#14-kubernetes-2º-run-synthetic-com-o-health-final)).
 
 ```powershell
 aws eks update-kubeconfig --region us-west-2 --name oficina-homolog
@@ -415,7 +476,7 @@ Invoke-Workflow -Repo fiap-tc-fase4-oficina-auth-serverless -Workflow terraform-
 
 O run empacota a Lambda Java 21, aplica Lambdas, API Gateway, authorizer, SNS/SQS de notificação e **sincroniza `API_GATEWAY_BASE_URL`, `AUTH_BASE_URL` e `NOTIFICATION_ENDPOINT` com o OS**. O script leva também `API_GATEWAY_BASE_URL` ao Orçamento e Pagamento.
 
-Esperado no script: `URLs do API Gateway sincronizadas automaticamente com o backend.` As rotas para o Orçamento e Pagamento ainda não existem; elas entram na seção 13.
+Esperado no script: `URLs do API Gateway sincronizadas automaticamente com o backend.` As rotas para o Orçamento e Pagamento ainda não existem; elas entram na seção [13](#13-auth-2º-apply-rotas-dos-serviços-e-webhook).
 
 ## 12. CD dos 3 serviços
 
@@ -490,11 +551,11 @@ Namespaces e deployments (o CD acrescenta o ambiente ao nome do namespace; escol
 }
 ```
 
-Cole do `. {` até o `}`. O bloco pergunta o ambiente (1 = `homolog`, 2 = `production`); o `. { }` mantém `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` na janela para a seção 16 e para no primeiro erro.
+Cole do `. {` até o `}`. O bloco pergunta o ambiente (1 = `homolog`, 2 = `production`); o `. { }` mantém `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` na janela para a seção [16](#16-validação-funcional-da-saga-processo-manual) e para no primeiro erro.
 
 Esperado: `current-context` terminando em `cluster/oficina-<ambiente>`; 4 URLs preenchidas; os 3 health `UP`; rollout concluído.
 
-> A seção 16 usa `$OS`, `$DR`, `$OP` e `$GW`. Rode a seção 15 e a 16.1 na mesma janela do PowerShell antes da 16.2; em uma janela nova, rode as duas de novo. Depois de subir ou mexer em outro ambiente, o `kubectl` fica apontando para o último cluster usado: por isso a seção começa pelo `update-kubeconfig`.
+> A seção [16](#16-validação-funcional-da-saga-processo-manual) usa `$OS`, `$DR`, `$OP` e `$GW`. Rode a seção [15](#15-validar-a-saúde-técnica) e a [16.1](#161-login-do-funcionário) na mesma janela do PowerShell antes da [16.2](#162-cadastro-peça-com-estoque-serviço-cliente-e-veículo); em uma janela nova, rode as duas de novo. Depois de subir ou mexer em outro ambiente, o `kubectl` fica apontando para o último cluster usado: por isso a seção começa pelo `update-kubeconfig`.
 
 Swagger (pelos LoadBalancers, não pelo API Gateway):
 
@@ -506,7 +567,7 @@ Start-Process "$OP/swagger-ui.html"
 
 ### 15.1 Tokens para testar pelo Swagger (funcionário, técnico e cliente)
 
-Rode na mesma janela da seção 15, porque o bloco usa as variáveis `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` definidas lá.
+Rode na mesma janela da seção [15](#15-validar-a-saúde-técnica), porque o bloco usa as variáveis `$Amb`, `$OS`, `$DR`, `$OP` e `$GW` definidas lá.
 
 | Perfil | Papel no token | Como obter | Validade | Onde usar |
 |---|---|---|---|---|
@@ -561,7 +622,7 @@ No Swagger, clique em **Authorize**, cole só o token (sem `Bearer`) e clique em
 - **Cliente:** o token vale 15 min. Com `401` ou `403`, rode de novo só a linha do `$TokCliente`. Ele só enxerga as OS do próprio cliente; para ter uma OS desse cliente, abra uma com o token do funcionário (`POST /ordens-servico`, com o `idCliente` mostrado) e um veículo dele (`POST /veiculos`).
 - **Técnico e funcionário:** os tokens valem 240 min. Depois disso, rode o bloco de novo.
 - O e-mail e a senha do técnico são fixos, só para o Lab. Para outro técnico, troque `$TecEmail` e `$TecSenha`.
-- O bloco também deixa `$HF`, `J` e `$CT` prontos: dá para seguir direto para a 16.2.
+- O bloco também deixa `$HF`, `J` e `$CT` prontos: dá para seguir direto para a [16.2](#162-cadastro-peça-com-estoque-serviço-cliente-e-veículo).
 
 ## 16. Validação funcional da Saga (processo manual)
 
@@ -576,7 +637,7 @@ $login = Invoke-RestMethod -Method Post "$OS/auth/login" -ContentType $CT -Body 
 $HF = @{ Authorization = "Bearer $($login.accessToken)" }
 ```
 
-O token do funcionário vale 240 min (`validadeMinutos=240`; sem esse campo, 60 min). Com 401/403 no meio do teste, repita as 2 últimas linhas. O token do cliente (`$HC`, na 16.3) vale 15 min. Tokens de técnico e de cliente para o Swagger: seção 15.1.
+O token do funcionário vale 240 min (`validadeMinutos=240`; sem esse campo, 60 min). Com 401/403 no meio do teste, repita as 2 últimas linhas. O token do cliente (`$HC`, na [16.3](#163-fluxo-feliz)) vale 15 min. Tokens de técnico e de cliente para o Swagger: seção [15.1](#151-tokens-para-testar-pelo-swagger-funcionário-técnico-e-cliente).
 
 ### 16.2 Cadastro: peça com estoque, serviço, cliente e veículo
 
@@ -756,7 +817,7 @@ Esperado: filas e DLQs com `0` mensagens depois do fluxo; o item da OS no Dynamo
 
 Os bancos PostgreSQL são privados: abra-os no DBeaver pelo túnel do [Database Infra, seção 6.3](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra#63-ver-os-dados-do-rds-dbeaver-ou-psql), que também traz as portas, a senha e os erros comuns.
 
-**`correlation_id`:** é o mesmo em todas as mensagens da mesma OS, enquanto o `message_id` muda a cada mensagem. Ele vem do `X-Request-Id` da abertura da OS: `hml-<número>` nestes testes manuais, `postman-saga-<runId>` no E2E da seção 17 (`runId` = horário do run em milissegundos) e um UUID quando a requisição chega sem o cabeçalho. O prefixo só indica a origem do teste.
+**`correlation_id`:** é o mesmo em todas as mensagens da mesma OS, enquanto o `message_id` muda a cada mensagem. Ele vem do `X-Request-Id` da abertura da OS: `hml-<número>` nestes testes manuais, `postman-saga-<runId>` no E2E da seção [17](#17-e2e-automatizado-newman) (`runId` = horário do run em milissegundos) e um UUID quando a requisição chega sem o cabeçalho. O prefixo só indica a origem do teste.
 
 **No console da AWS:** selecione antes a região **Estados Unidos (Oregon) us-west-2**, no canto superior direito. Em outra região (por exemplo, Norte da Virgínia) as filas e a tabela não aparecem.
 - **SQS:** **Simple Queue Service** → **Filas** → busque `oficina-homolog-`. As colunas **Mensagens disponíveis** e **Mensagens em andamento** ficam nessa lista, que só se atualiza no **⟳**. Dentro da fila, a aba **Monitoramento** mostra os gráficos (atraso de 1 a 5 min).
@@ -765,7 +826,7 @@ Os bancos PostgreSQL são privados: abra-os no DBeaver pelo túnel do [Database 
 
 ### 16.6 Ver uma mensagem parada na fila (opcional)
 
-Para ver a fila ser alimentada, pare o consumidor do Diagnóstico e Reparo, abra algumas OS e religue-o. Use a mesma janela das seções 15 a 16.2 (`$OS`, `$DR`, `$HF`, `$cli`, `$Placa`).
+Para ver a fila ser alimentada, pare o consumidor do Diagnóstico e Reparo, abra algumas OS e religue-o. Use a mesma janela das seções [15](#15-validar-a-saúde-técnica) a [16.2](#162-cadastro-peça-com-estoque-serviço-cliente-e-veículo) (`$OS`, `$DR`, `$HF`, `$cli`, `$Placa`).
 
 **1. Pare o consumidor.** Com 0 réplicas o HPA não o religa sozinho.
 
@@ -828,16 +889,16 @@ gh run watch (gh run list --repo tiagomiele/fiap-tc-fase4-oficina-os-service --w
 
 A coleção faz o health dos 3 serviços, a Saga até `PAGA`/`ENTREGUE` (pagamento fake), a segurança do API Gateway e confere o mesmo `correlationId` nas etapas (`postman-saga-<runId>`). As URLs do D&R e do O&P vêm dos LoadBalancers via `kubectl`. Depois, opcionalmente, repita com `-f run_load_test=true` (smoke k6). Resultado no artefato `newman-homolog-<run>`.
 
-O Newman só roda com `PAYMENT_PROVIDER=fake`. A validação com o Mercado Pago real vem depois, na seção 20.
+O Newman só roda com `PAYMENT_PROVIDER=fake`. A validação com o Mercado Pago real vem depois, na seção [20](#20-validação-manual-do-mercado-pago-sandbox-depois-do-e2e-verde).
 
 **17.1 E2E em produção**
 
-Use depois da seção 23, com a produção no ar. Antes, confira três coisas:
+Use depois da seção [23](#23-produção-validações-após-homologação-aprovada), com a produção no ar. Antes, confira três coisas:
 - **Ambiente no ar:** os nodes e os 3 serviços precisam estar rodando:
 
   ```powershell
   aws eks update-kubeconfig --region us-west-2 --name oficina-production
-  kubectl get nodes                                   # 2 nodes Ready; "No resources found" = seção 21.2
+  kubectl get nodes                                   # 2 nodes Ready; "No resources found" = seção [21.2](#212-conferir-se-os-nós-do-eks-voltaram)
   kubectl get pods -A | Select-String oficina         # todos 1/1 Running, nenhum Pending
   $u = gh variable get BACKEND_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env production
   Invoke-RestMethod "$u/actuator/health/readiness"    # status UP
@@ -865,7 +926,7 @@ O run termina com `completed with 'success'`, e o resultado fica no artefato `ne
 | Sintoma | Causa | O que fazer |
 |---|---|---|
 | `ExpiredToken` / `InvalidClientTokenId` no passo *Configure AWS Academy credentials* | credenciais do Lab vencidas no GitHub | copie o `[default]`, rode o `lab-reiniciado.ps1` e o script acima |
-| `LoadBalancer sem hostname` | D&R ou O&P sem deploy na produção | rode o CD dos 2 serviços na `main` (seção 23) |
+| `LoadBalancer sem hostname` | D&R ou O&P sem deploy na produção | rode o CD dos 2 serviços na `main` (seção [23](#23-produção-validações-após-homologação-aprovada)) |
 | falha no `/pagamentos/{n}/simular` | `PAYMENT_PROVIDER=mercadopago` na produção | `.\scripts\provedor-pagamento.ps1 -Environment production -Provedor fake` (20.6) |
 | `socket hang up` na 1ª requisição (*Health readiness e X-Request-Id*); no PowerShell, `A conexão subjacente estava fechada` | o cluster ficou sem nodes (o Lab parou as EC2) e os pods estão `Pending`; o LoadBalancer fecha a conexão por não ter destino saudável | interrompa o script (`Ctrl+C`), rode `.\scripts\lab-reiniciado.ps1 -Environment production` e valide de novo |
 
@@ -915,7 +976,7 @@ kubectl get hpa -A                                   # REPLICAS abaixo de MAXPOD
 kubectl get pods -A --field-selector=status.phase=Pending   # No resources found
 ```
 
-  Exemplo já resolvido: `hpa no maximo` ficava aberta porque o HPA escalava também por memória, e a JVM ocupa ~90% do request mesmo parada (CPU em 0%). Correção: HPA só por CPU nos 3 serviços. Depois do CD as réplicas descem sozinhas e a issue fecha sozinha.
+Exemplo já resolvido: `hpa no maximo` ficava aberta porque o HPA escalava também por memória, e a JVM ocupa ~90% do request mesmo parada (CPU em 0%). Correção: HPA só por CPU nos 3 serviços. Depois do CD as réplicas descem sozinhas e a issue fecha sozinha.
 
 ## 19. Checklist final de homologação
 
@@ -947,9 +1008,9 @@ Só os 3 serviços Java têm SonarCloud (Auth, Kubernetes e Database não). Os p
 2. Avatar (canto superior direito) → organização **tiagomiele** → **Projects**. Aparecem os 3 projetos `tiagomiele_oficina-...-service`. A frase "Your default branch has not been analyzed yet" é normal: a branch padrão do SonarCloud é a `master`, que o CI não analisa; isso **não** reprova.
 3. Clique no projeto. Ao lado do título fica o botão de branch (`master ▾`): clique nele e escolha **`homolog`**. O menu lateral da organização não tem *Branches*; se o botão não aparecer, use os links da tabela, que já abrem na `homolog`.
 4. Na tela *Branch Summary* da `homolog`, confira:
-   - **Quality gate: Passed** (quadrado verde ✓);
-   - **Coverage** acima de **80%**;
-   - Security, Reliability e Maintainability sem issue aberta (nota A).
+  - **Quality gate: Passed** (quadrado verde ✓);
+  - **Coverage** acima de **80%**;
+  - Security, Reliability e Maintainability sem issue aberta (nota A).
 5. Repita para os 3 serviços e tire um print de cada um como evidência.
 
 | Serviço | Link (branch `homolog`) |
@@ -1002,7 +1063,7 @@ O artefato fica disponível por 90 dias. Se ele tiver expirado, rode o BDD de no
 **Pré-requisitos**
 - credenciais de teste do vendedor (4.8): Access Token, Public Key e assinatura secreta do webhook;
 - conta de teste compradora `oficina-cliente` (usuário, senha e código de verificação ficam no card da conta, em *Contas de teste*);
-- só para os passos manuais 20.3 a 20.5: na mesma janela do PowerShell, as variáveis do 15 (`$Amb`, `$OS`, `$DR`, `$OP`, `$GW`), o login do 16.1 (`$HF`, `J`, `$CT`) e o cadastro do 16.2 (`$cli`, `$Placa`, `$Cpf`), no mesmo ambiente.
+- só para os passos manuais [20.3](#203-serviço-de-r-500-e-função-auxiliar-manual) a [20.5](#205-pagamento-recusado-othe-e-nova-tentativa): na mesma janela do PowerShell, as variáveis do 15 (`$Amb`, `$OS`, `$DR`, `$OP`, `$GW`), o login do 16.1 (`$HF`, `J`, `$CT`) e o cadastro do 16.2 (`$cli`, `$Placa`, `$Cpf`), no mesmo ambiente.
 
 ### 20.1 Ligar o Mercado Pago
 
@@ -1030,7 +1091,7 @@ A URL muda sempre que o ambiente é recriado (API Gateway novo). Depois de cada 
 
 O script cria a OS de R$ 5,00 até `AGUARDANDO_PAGAMENTO` e copia o link. **Pague primeiro** (janela anônima, comprador de teste, titular `APRO`, dados da tabela do 20.3) e **só depois** tecle Enter: ele confere se a OS ficou `PAGA`. Se teclou Enter antes, use `Ctrl+C`, pague e confira com `.\scripts\pagamento-mercadopago.ps1 -NumeroOs OS-...`. Depois, **pule para o 20.6**.
 
-> **Os passos 20.3 a 20.5 abaixo são o roteiro manual (opcional)**, para testar a recusa (`OTHE`) e a nova tentativa. Eles só funcionam depois das seções 15, 16.1 e 16.2 rodadas no mesmo ambiente e na mesma janela do PowerShell; com variáveis de outra rodada, as chamadas falham com `O nome remoto não pôde ser resolvido`.
+> **Os passos [20.3](#203-serviço-de-r-500-e-função-auxiliar-manual) a [20.5](#205-pagamento-recusado-othe-e-nova-tentativa) abaixo são o roteiro manual (opcional)**, para testar a recusa (`OTHE`) e a nova tentativa. Eles só funcionam depois das seções [15](#15-validar-a-saúde-técnica), [16.1](#161-login-do-funcionário) e [16.2](#162-cadastro-peça-com-estoque-serviço-cliente-e-veículo) rodadas no mesmo ambiente e na mesma janela do PowerShell; com variáveis de outra rodada, as chamadas falham com `O nome remoto não pôde ser resolvido`.
 
 ### 20.3 Serviço de R$ 5,00 e função auxiliar (manual)
 
@@ -1237,7 +1298,7 @@ Se depois da recriação o `explicit deny` continuar, o bloqueio é permanente n
 ### 21.3 Retomar
 
 - Repita **só** o workflow ou passo que falhou (os anteriores verdes continuam válidos).
-- Se os serviços já estavam no ar, confira os 3 health (seção 15) antes de seguir; os LoadBalancers mantêm o mesmo hostname.
+- Se os serviços já estavam no ar, confira os 3 health (seção [15](#15-validar-a-saúde-técnica)) antes de seguir; os LoadBalancers mantêm o mesmo hostname.
 - A sessão dura cerca de 4 h. Antes de um passo longo (EKS, RDS), confira o tempo restante no Lab; se faltar pouco, renove antes (21.1).
 
 ## 22. Resumo operacional mínimo (reconstrução com tudo já preparado)
@@ -1286,9 +1347,9 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 # .\scripts\configure-environment.ps1 -Environment production -ConfigureSonarCloud -ConfigureNewRelic
 ```
 
-   **Atenção:** toda execução do script, até com `-Environment homolog`, regrava as variáveis dos workspaces de produção. Se você escolheu o perfil descartável, use `-UseAwsAcademyDisposableProductionProfile` em **todas** as execuções; sem ele, os RDS de produção voltam para Multi-AZ, deletion protection e snapshot final no próximo apply.
+**Atenção:** toda execução do script, até com `-Environment homolog`, regrava as variáveis dos workspaces de produção. Se você escolheu o perfil descartável, use `-UseAwsAcademyDisposableProductionProfile` em **todas** as execuções; sem ele, os RDS de produção voltam para Multi-AZ, deletion protection e snapshot final no próximo apply.
 
-   O `-ValidateOnly` não grava credenciais: o `aws` do terminal só deixa de dar `ExpiredToken` depois da execução real. Em seguida confirme que a conta está livre (as duas listas vazias ou só com recursos de produção):
+O `-ValidateOnly` não grava credenciais: o `aws` do terminal só deixa de dar `ExpiredToken` depois da execução real. Em seguida confirme que a conta está livre (as duas listas vazias ou só com recursos de produção):
 
 ```powershell
 aws eks list-clusters --region us-west-2
@@ -1309,7 +1370,7 @@ Não avance se:
 - o Kubernetes não produz VPC, subnets privadas e security group;
 - algum banco não produz `jdbc_url`/`table_name`/`queue_url`;
 - os 3 gates `DEPLOY_ENABLED` não ficam `true`;
-- a LabRole falha no teste da seção 10;
+- a LabRole falha no teste da seção [10](#10-teste-da-labrole-pod--sqs-e-dynamodb);
 - algum serviço falha em rollout, smoke ou LoadBalancer;
 - o 2º apply do Auth não publica as rotas do O&P.
 
@@ -1321,21 +1382,21 @@ Não avance se:
 | `Secret names must not start with GITHUB_` | script antigo com `GITHUB_SYNC_TOKEN` | `git pull` na `homolog` (secret agora é `REPO_SYNC_TOKEN`) e rodar de novo |
 | `Where-Object : A propriedade 'name' não foi encontrada` nas regras de proteção | script antigo no PowerShell 5.1 | `git pull` na `homolog` (correção do [#11](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/11)) |
 | `gh api --method POST .../rulesets` → `HTTP 422` | regra já existe e o 5.1 leu o nome com acento errado | rodar com `-SkipBranchProtection` até o merge do [#13](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/13); depois, sem o parâmetro |
-| `ExpiredToken` / `voc-cancel-cred` | Lab expirou | seção 21 |
-| `kubectl get nodes` → `No resources found` depois do Start Lab | nós parados ou bootstrap bloqueado pelo Academy (`explicit deny` no console da instância) | seção 21.2: recriar os nós |
-| Pods `Pending` há muito tempo, `socket hang up` no E2E ou `A conexão subjacente estava fechada` no health | cluster sem nodes | `kubectl get nodes`; se vazio, seção 21.2 com o `$amb` do ambiente |
+| `ExpiredToken` / `voc-cancel-cred` | Lab expirou | seção [21](#21-sessão-do-lab-expirou-ou-foi-reiniciada-expiredtoken-voc-cancel-cred) |
+| `kubectl get nodes` → `No resources found` depois do Start Lab | nós parados ou bootstrap bloqueado pelo Academy (`explicit deny` no console da instância) | seção [21.2](#212-conferir-se-os-nós-do-eks-voltaram): recriar os nós |
+| Pods `Pending` há muito tempo, `socket hang up` no E2E ou `A conexão subjacente estava fechada` no health | cluster sem nodes | `kubectl get nodes`; se vazio, seção [21.2](#212-conferir-se-os-nós-do-eks-voltaram) com o `$amb` do ambiente |
 | `TF_APPLY_ENABLED`/`ENABLE_TERRAFORM_APPLY` diferente de `true` | Environment incompleto | rodar o script e conferir o Environment `homolog` |
-| `Deploy bloqueado: DEPLOY_ENABLED` | script não rodou depois dos bancos | seção 9 e repetir o CD |
+| `Deploy bloqueado: DEPLOY_ENABLED` | script não rodou depois dos bancos | seção [9](#9-bancos-e-filas-database-infra) e repetir o CD |
 | `Configure no GitHub Environment homolog: ...` | variável/secret faltando | rodar o script; se for `REPO_SYNC_TOKEN`, refazer 4.5 |
 | Sincronização 401/403 entre repos | `REPO_SYNC_TOKEN` expirado ou sem *Environments: Read and write* nos 6 repos | gerar outro, apagar `github-sync-token.clixml`, rodar o script |
 | Pod `ImagePullBackOff` | pacote GHCR privado | GitHub → Packages → *Change visibility: Public* |
 | Pod `CrashLoopBackOff` no OS/O&P | JDBC, senha ou security group | `kubectl logs -n <ns> deploy/<nome> --previous`; script e redeploy |
-| Comando não chega no D&R/O&P | URL de fila ou LabRole | seção 10; `kubectl logs` procurando `Falha ao processar` |
+| Comando não chega no D&R/O&P | URL de fila ou LabRole | seção [10](#10-teste-da-labrole-pod--sqs-e-dynamodb); `kubectl logs` procurando `Falha ao processar` |
 | Mensagem na DLQ | 5 falhas seguidas no consumidor | `aws sqs receive-message --queue-url <dlq>` e analisar o log do serviço |
 | API Gateway 503 com o serviço saudável | integração aponta para LoadBalancer antigo | repetir o Auth depois do CD |
-| Rotas do cliente 404 no gateway | Auth sem o 2º apply | seção 13 |
+| Rotas do cliente 404 no gateway | Auth sem o 2º apply | seção [13](#13-auth-2º-apply-rotas-dos-serviços-e-webhook) |
 | 403 no gateway | JWT expirado (15 min) ou cache do authorizer (5 min) | refazer `POST /auth/cpf` |
-| Synthetic ausente | Kubernetes não foi rodado de novo | seção 14 |
+| Synthetic ausente | Kubernetes não foi rodado de novo | seção [14](#14-kubernetes-2º-run-synthetic-com-o-health-final) |
 | Observabilidade: `Monitor name already exists` | monitor da Fase 3 com o mesmo nome na conta New Relic | já corrigido na `homolog` ([kubernetes-infra#5](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pull/5)): o monitor da Fase 4 é `oficina-fase4-homolog-healthcheck`; rode o `deploy-homolog.yml` de novo |
 | `$GW/...` devolve `{"message":"Internal Server Error"}` na 1ª chamada autenticada | cold start do Lambda Authorizer (Java + agente New Relic) passou dos 10 s do API Gateway; o log de acesso `/aws/apigateway/oficina-auth-homolog` mostra `responseLatency = 10001` e `integrationStatus = -` | repita a chamada; corrigido com o Authorizer em 1024 MB ([auth-serverless#4](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pull/4)) |
 | Log do serviço: `Invalid character found in method name [0x16 0x03 ...]` | cliente da internet tentando HTTPS (TLS) no LoadBalancer HTTP público | inofensivo (nível INFO); ignore |
@@ -1343,13 +1404,13 @@ Não avance se:
 | `$GW/...` responde `401` em chamadas que antes funcionavam | token do cliente (`$HC`) expirou (`jwt_ttl_seconds = 900`, 15 min) | refaça o login por CPF (`$tc = Invoke-RestMethod -Method Post "$GW/auth/cpf" ...` e `$HC = ...`) e repita a chamada |
 | New Relic sem dados | janela de ingestão | gerar tráfego e esperar 5–15 min |
 | Console da AWS não mostra as filas SQS nem a tabela DynamoDB | região errada no console | selecione **Estados Unidos (Oregon) us-west-2** no canto superior direito |
-| Fila sempre com **Mensagens disponíveis** = `0` | comportamento normal: o consumidor processa e apaga a mensagem em segundos | 16.5 (onde ver o histórico) e 16.6 (cenário com a mensagem parada) |
-| `namespaces "oficina-diagnostico-reparo" not found` | namespace sem o sufixo do ambiente | use `oficina-diagnostico-reparo-homolog` (tabela da seção 15) |
+| Fila sempre com **Mensagens disponíveis** = `0` | comportamento normal: o consumidor processa e apaga a mensagem em segundos | 16.5 (onde ver o histórico) e [16.6](#166-ver-uma-mensagem-parada-na-fila-opcional) (cenário com a mensagem parada) |
+| `namespaces "oficina-diagnostico-reparo" not found` | namespace sem o sufixo do ambiente | use `oficina-diagnostico-reparo-homolog` (tabela da seção [15](#15-validar-a-saúde-técnica)) |
 | `namespaces "oficina-production" not found` | `kubectl` apontando para o cluster de homologação | `aws eks update-kubeconfig --region us-west-2 --name oficina-production` |
-| `namespaces "oficina-homolog" not found` ou URL `http://` vazia | `kubectl` apontando para o cluster de produção | `aws eks update-kubeconfig --region us-west-2 --name oficina-homolog` (a seção 15 já faz) |
+| `namespaces "oficina-homolog" not found` ou URL `http://` vazia | `kubectl` apontando para o cluster de produção | `aws eks update-kubeconfig --region us-west-2 --name oficina-homolog` (a seção [15](#15-validar-a-saúde-técnica) já faz) |
 | Script pede `AWS_ACCESS_KEY_ID:` | área de transferência sem o `[default]` | `Ctrl+C`, copie o `[default]` e rode de novo; os scripts do Bootstrap automatizado conferem antes e só pedem Enter |
 | `No cluster found for name: oficina-<ambiente>` | ambiente destruído ou nunca criado | `.\scripts\provision-environment.ps1`; não rode o `configure-environment.ps1` desse ambiente à toa, porque ele religa os gates de apply |
-| `Invoke-Workflow` não reconhecido | a função da seção 7.4 não foi criada nesta janela | cole o bloco da 7.4 inteiro; ou use os scripts do Bootstrap automatizado, que não dependem dela |
+| `Invoke-Workflow` não reconhecido | a função da seção [7.4](#74-função-auxiliar-para-disparar-e-acompanhar-workflows) não foi criada nesta janela | cole o bloco da [7.4](#74-função-auxiliar-para-disparar-e-acompanhar-workflows) inteiro; ou use os scripts do Bootstrap automatizado, que não dependem dela |
 | `pg-tunnel` em `Pending`, DBeaver com senha recusada ou `Connection refused` | nodes cheios, senha antiga ou conexão de outro ambiente | [Database Infra, seção 6.3](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra#63-ver-os-dados-do-rds-dbeaver-ou-psql) |
 
 Tempos típicos: EKS 20–40 min; cada RDS 10–25 min; DynamoDB 2–5 min; Auth 5–15 min; cada CD 8–15 min; Kubernetes (2º run) 5–20 min. Total: 2h30 a 3h30.
@@ -1437,4 +1498,4 @@ aws sqs list-queues --region us-west-2 --queue-name-prefix oficina-homolog-     
 - **O destroy do New Relic falha no plan com `408 response returned`:** foi um timeout da API do New Relic. Retome com `-StartAt newrelic`. Se o erro se repetir, espere uns 5 min antes de tentar de novo.
 - **No novo apply, `ResourceAlreadyExistsException` em um log group do CloudWatch:** o log group foi recriado pela AWS depois do destroy. Apague-o (`aws logs delete-log-group --region us-west-2 --log-group-name <nome>`) e rode o workflow de novo.
 
-**Para recriar:** comece pela seção 6 (sessão AWS Academy) e siga o resumo da seção 22. A seção 4 (preparação permanente) não precisa ser repetida.
+**Para recriar:** comece pela seção [6](#6-iniciar-uma-sessão-aws-academy) (sessão AWS Academy) e siga o resumo da seção [22](#22-resumo-operacional-mínimo-reconstrução-com-tudo-já-preparado). A seção [4](#4-preparação-permanente-uma-vez-por-computadorconta) (preparação permanente) não precisa ser repetida.
