@@ -89,6 +89,29 @@ Diagramas, comandos, eventos, compensações e **como validar** (logs, filas, DL
 | Segurança de código e IaC | SBOM CycloneDX, Dependency-Track, Trivy, Checkov, TFLint, actionlint, ShellCheck e Gitleaks |
 | Observabilidade | New Relic APM, logs JSON com `correlationId`, traces, dashboards, alertas e Synthetic |
 
+### 7.1 Stack técnica do OS Service
+
+- **Linguagem:** Java 21
+- **Framework:** Spring Boot 3.3 (Web, Validation, Security, Data JPA, Actuator, Mail)
+- **Banco de dados:** Amazon RDS PostgreSQL 16, com Flyway (migrations V1 a V5)
+- **Mensageria:** Amazon SQS (AWS SDK v2), com DLQ; orquestrador da Saga
+- **Segurança:** JJWT (JWT HS256 de funcionário e técnico; valida o RS256 do cliente)
+- **Documentação da API:** springdoc-openapi 2.6 (Swagger)
+- **Logs:** JSON com logstash-logback-encoder e `correlationId` no MDC
+- **Testes:** JUnit 5, RestAssured, Testcontainers (LocalStack), ArchUnit, Awaitility
+- **BDD e E2E:** Cucumber (Saga com os 3 serviços), Newman e k6
+- **Cobertura:** JaCoCo
+- **Formatação:** Spotless
+- **Contêiner:** Docker (Eclipse Temurin 21)
+- **Orquestração:** Kubernetes (Amazon EKS)
+- **CI/CD:** GitHub Actions, com imagens no GHCR
+- **Qualidade e segurança:** SonarCloud, SBOM CycloneDX + Dependency-Track, Trivy
+- **Observabilidade:** New Relic Java agent
+
+
+
+
+
 ## 8. Estrutura de pastas
 
 ```text
