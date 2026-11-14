@@ -1,6 +1,6 @@
 > **Tech Challenge Fase 4 — `fiap-tc-fase4-oficina-os-service`** · documentação central da solução
 
-# Oficina Tech Challenge Fase 4 — documentação central
+# Tech Challenge Oficina Fase 4 — documentação central
 
 Este repositório é o ponto de entrada funcional e técnico da Oficina Fase 4. Por ele dá para entender o negócio, a divisão em microsserviços, a Saga, o CI/CD, a subida e a destruição na AWS e as evidências. O detalhe de cada parte fica no README do repositório responsável (seção 3).
 
@@ -38,7 +38,7 @@ Os serviços não acessam o banco uns dos outros. Eles conversam por mensagens S
 
 | Componente | Contribuição para o negócio | Responsabilidade técnica | Documentação |
 |---|---|---|---|
-| OS Service (este) | Conduz o atendimento e a jornada da OS. | Clientes, veículos, OS, catálogo, estoque, notas de fornecedor, financeiro, usuários, relatórios e orquestração da Saga; RDS PostgreSQL. | este README · [Saga](docs-fase4/saga/README.md) |
+| OS Service | Conduz o atendimento e a jornada da OS. | Clientes, veículos, OS, catálogo, estoque, notas de fornecedor, financeiro, usuários, relatórios e orquestração da Saga; RDS PostgreSQL. | este README · [Saga](docs-fase4/saga/README.md) |
 | Orçamento e Pagamento | Apresenta o orçamento e recebe o pagamento. | Orçamento, aprovação, Mercado Pago Checkout Pro (ou fake) e webhook; RDS PostgreSQL. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service#readme) |
 | Diagnóstico e Reparo | Organiza o trabalho do técnico. | Fila do técnico, diagnóstico e reparo; DynamoDB. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service#readme) |
 | Auth Serverless | Permite o acesso seguro do cliente. | Login por CPF, JWT RS256, Lambda Authorizer, API Gateway e notificações; consulta o OS por REST. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless#readme) |

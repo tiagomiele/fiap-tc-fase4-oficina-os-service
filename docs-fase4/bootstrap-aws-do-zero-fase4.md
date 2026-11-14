@@ -514,8 +514,20 @@ Rode na mesma janela da seção 15, porque o bloco usa as variáveis `$Amb`, `$O
 | Técnico | `TECNICO_DA_OFICINA` | o admin cria o usuário com `POST $OS/usuarios`, depois faz `POST $OS/auth/login` | 60 min, ou o valor de `validadeMinutos` | Diagnóstico e Reparo (`/execucoes/**`) e itens/entrega da OS no OS Service |
 | Cliente | `CLIENTE`, emitido pelo Auth Serverless | `POST $GW/auth/cpf`, com o CPF de um cliente ativo | 15 min | consulta e histórico da OS, orçamento e pagamento, só das OS dele; pelo API Gateway (`$GW`) ou pelo Swagger |
 
+
 ```powershell
-. {   # cole o bloco inteiro, na mesma janela da seção 15
+. {   # cole o bloco inteiro: ele pergunta o ambiente e para no primeiro erro
+  do { $op = Read-Host 'Ambiente: [1] homolog  [2] production' } until ($op -in '1','2')
+  $Amb = switch ($op) { '1' { 'homolog' } '2' { 'production' } }
+  aws eks update-kubeconfig --region us-west-2 --name "oficina-$Amb" | Out-Null
+  function Get-LbUrl($svc, $ns) { 'http://' + (kubectl get svc $svc -n $ns -o jsonpath='{.status.loadBalancer.ingress[0].hostname}') }
+  $OS = Get-LbUrl 'oficina-app' "oficina-$Amb"
+  $DR = Get-LbUrl 'oficina-diagnostico-reparo' "oficina-diagnostico-reparo-$Amb"
+  $OP = Get-LbUrl 'oficina-orcamento-pagamento' "oficina-orcamento-pagamento-$Amb"
+  $GW = gh variable get API_GATEWAY_BASE_URL --repo tiagomiele/fiap-tc-fase4-oficina-os-service --env $Amb
+  if ('http://' -in $OS, $DR, $OP -or [string]::IsNullOrWhiteSpace($GW)) { throw "URL vazia em '$Amb': o ambiente está no ar? Confira com kubectl get svc -A" }
+  "OS: $OS`nDR: $DR`nOP: $OP`nGW: $GW"
+
   function J($o) { ,[Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Depth 6)) }
   $CT = 'application/json; charset=utf-8'
   $s = Import-Clixml "C:\fiap-secrets\oficina-$Amb\backend-admin-password.clixml"
