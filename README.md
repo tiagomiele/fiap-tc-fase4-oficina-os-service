@@ -1,6 +1,6 @@
 > **Tech Challenge Fase 4 — `fiap-tc-fase4-oficina-os-service`** · documentação central da solução
 
-# Oficina Tech Challenge Fase 4 — documentação central
+# Tech Challenge Oficina Fase 4 — documentação central
 
 Este repositório é o ponto de entrada funcional e técnico da Oficina Fase 4. Por ele dá para entender o negócio, a divisão em microsserviços, a Saga, o CI/CD, a subida e a destruição na AWS e as evidências. O detalhe de cada parte fica no README do repositório responsável (seção 3).
 
@@ -38,7 +38,7 @@ Os serviços não acessam o banco uns dos outros. Eles conversam por mensagens S
 
 | Componente | Contribuição para o negócio | Responsabilidade técnica | Documentação |
 |---|---|---|---|
-| OS Service (este) | Conduz o atendimento e a jornada da OS. | Clientes, veículos, OS, catálogo, estoque, notas de fornecedor, financeiro, usuários, relatórios e orquestração da Saga; RDS PostgreSQL. | este README · [Saga](docs-fase4/saga/README.md) |
+| OS Service | Conduz o atendimento e a jornada da OS. | Clientes, veículos, OS, catálogo, estoque, notas de fornecedor, financeiro, usuários, relatórios e orquestração da Saga; RDS PostgreSQL. | este README · [Saga](docs-fase4/saga/README.md) |
 | Orçamento e Pagamento | Apresenta o orçamento e recebe o pagamento. | Orçamento, aprovação, Mercado Pago Checkout Pro (ou fake) e webhook; RDS PostgreSQL. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service#readme) |
 | Diagnóstico e Reparo | Organiza o trabalho do técnico. | Fila do técnico, diagnóstico e reparo; DynamoDB. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service#readme) |
 | Auth Serverless | Permite o acesso seguro do cliente. | Login por CPF, JWT RS256, Lambda Authorizer, API Gateway e notificações; consulta o OS por REST. | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless#readme) |
@@ -88,6 +88,29 @@ Diagramas, comandos, eventos, compensações e **como validar** (logs, filas, DL
 | Qualidade | JUnit 5, RestAssured, Testcontainers (LocalStack), ArchUnit, Cucumber (BDD), JaCoCo, Newman, k6 e SonarCloud |
 | Segurança de código e IaC | SBOM CycloneDX, Dependency-Track, Trivy, Checkov, TFLint, actionlint, ShellCheck e Gitleaks |
 | Observabilidade | New Relic APM, logs JSON com `correlationId`, traces, dashboards, alertas e Synthetic |
+
+### 7.1 Stack técnica do OS Service
+
+- **Linguagem:** Java 21
+- **Framework:** Spring Boot 3.3 (Web, Validation, Security, Data JPA, Actuator, Mail)
+- **Banco de dados:** Amazon RDS PostgreSQL 16, com Flyway (migrations V1 a V5)
+- **Mensageria:** Amazon SQS (AWS SDK v2), com DLQ; orquestrador da Saga
+- **Segurança:** JJWT (JWT HS256 de funcionário e técnico; valida o RS256 do cliente)
+- **Documentação da API:** springdoc-openapi 2.6 (Swagger)
+- **Logs:** JSON com logstash-logback-encoder e `correlationId` no MDC
+- **Testes:** JUnit 5, RestAssured, Testcontainers (LocalStack), ArchUnit, Awaitility
+- **BDD e E2E:** Cucumber (Saga com os 3 serviços), Newman e k6
+- **Cobertura:** JaCoCo
+- **Formatação:** Spotless
+- **Contêiner:** Docker (Eclipse Temurin 21)
+- **Orquestração:** Kubernetes (Amazon EKS)
+- **CI/CD:** GitHub Actions, com imagens no GHCR
+- **Qualidade e segurança:** SonarCloud, SBOM CycloneDX + Dependency-Track, Trivy
+- **Observabilidade:** New Relic Java agent
+
+
+
+
 
 ## 8. Estrutura de pastas
 
@@ -252,15 +275,6 @@ Para operar um ambiente só com scripts e menus (subir, retomar depois do Start 
 - [Visão de negócio e engenharia](docs-fase4/visao-negocio-e-engenharia-fase4.md)
 - [Saga: comandos, eventos, compensações e validação](docs-fase4/saga/README.md)
 - [Bootstrap detalhado da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)
-
-## 13. Projetos relacionados e histórico
-
-- [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service)
-- [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service)
-- [Auth Serverless](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless)
-- [Database Infra](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra)
-- [Kubernetes Infra](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra)
-- Fases anteriores: [Fase 1](docs-fase1), [Fase 2](docs-fase2), [Fase 3](docs-fase3), [requisitos da Fase 3](docs-fase3/README-requisitos-obrigatorios-fase3.md), [índice de evidências da Fase 3](docs-fase3/README-Indice-Evidencia-fase3.md) e [projeto original da Fase 3](https://github.com/tiagomiele/fiap-tech-challenge-fase3-oficina-backend)
 
 ## Licença
 
