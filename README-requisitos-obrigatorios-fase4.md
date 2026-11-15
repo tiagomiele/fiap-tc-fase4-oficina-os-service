@@ -80,9 +80,9 @@ Como ver os dados gravados (DBeaver/`psql` por túnel, Console do DynamoDB, SQS 
 
 | Componente | Homologação | Produção |
 |---|---|---|
-| Database OS (RDS + SQS) | [Run 43610368364](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43610368364) | [Run 43732234220](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43732234220) |
-| Database Orçamento e Pagamento (RDS + SQS) | [Run 43611579716](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43611579716) | [Run 43733431259](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43733431259) |
-| Database Diagnóstico e Reparo (DynamoDB + SQS) | [Run 43612731260](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43612731260) | [Run 43734678178](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43734678178) |
+| Database OS (RDS + SQS) | [Run 43746887072](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887072) | [Run 43753305999](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753305999) |
+| Database Orçamento e Pagamento (RDS + SQS) | [Run 43746887105](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887105) | [Run 43753306036](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753306036) |
+| Database Diagnóstico e Reparo (DynamoDB + SQS) | [Run 43746887210](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887210) | [Run 43753306108](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753306108) |
 
 ### Evidências complementares
 
@@ -161,8 +161,8 @@ Cada fila tem uma DLQ, para onde a mensagem vai depois de 5 tentativas sem suces
 
 | Contexto | Tipo | Execução |
 |---|---|---|
-| `homolog` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43507318947](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43507318947) |
-| `main` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43508212391](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43508212391) |
+| `homolog` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43752132950](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752132950) |
+| `main` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43758915364](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915364) |
 | Homologação | Validação funcional E2E (Postman/Newman) | [Run 43101361602](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43101361602) |
 | Produção | Validação funcional E2E (Postman/Newman) | [Run 43325386467](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43325386467) |
 
@@ -190,11 +190,11 @@ Os 3 microsserviços têm testes unitários, cobertura mínima de 80% validada n
 
 | Serviço | Linhas | Instruções | Branches | Execução (artefato `jacoco-report`) | SonarCloud |
 |---|---|---|---|---|---|
-| OS Service | 84,4% | 83,3% | 71,3% | [Run 41484365373](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/41484365373) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-os-service&branch=homolog) |
-| Orçamento e Pagamento | 99,0% | 99,4% | 93,9% | [Run 41473064053](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/41473064053) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-orcamento-pagamento-service&branch=homolog) |
-| Diagnóstico e Reparo | 99,4% | 99,2% | 92,5% | [Run 41476675173](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/41476675173) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-diagnostico-reparo-service&branch=homolog) |
+| OS Service | 84,6% | 83,4% | 71,7% | [Run 43758915448](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915448) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-os-service&branch=main) |
+| Orçamento e Pagamento | 98,9% | 99,3% | 93,8% | [Run 43757359744](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43757359744) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-orcamento-pagamento-service&branch=main) |
+| Diagnóstico e Reparo | 99,4% | 99,2% | 92,5% | [Run 43755583520](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583520) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-diagnostico-reparo-service&branch=main) |
 
-Os valores vêm do relatório JaCoCo do último CI verde em `homolog` (02/11/2026). O Quality Gate do SonarCloud está **PASSED** nesses runs. Cada README também traz a evidência de cobertura: [OS](README.md#evidência-de-cobertura-de-testes), [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) e [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes).
+Os valores vêm do relatório JaCoCo do último CI verde na `main` (15/11/2026). O Quality Gate do SonarCloud está **PASSED** nesses runs. Cada README também traz a evidência de cobertura: [OS](README.md#evidência-de-cobertura-de-testes), [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) e [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes).
 
 ### Evidências complementares
 
@@ -230,12 +230,12 @@ Cada microsserviço tem pipeline de CI/CD independente, no próprio repositório
 
 | Projeto | CI `homolog` | Deploy homologação | CI `main` | Deploy produção |
 |---|---|---|---|---|
-| OS Service | [Run 43507319113](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43507319113) | [Run 43614703425](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43614703425) | [Run 43508212590](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43508212590) | [Run 43737788323](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43737788323) |
-| Orçamento e Pagamento | [Run 43046450848](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43046450848) | [Run 43640476466](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43640476466) | [Run 43047871464](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43047871464) | [Run 43489759299](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43489759299) |
-| Diagnóstico e Reparo | [Run 43038356507](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43038356507) | [Run 43616496310](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43616496310) | [Run 43038951152](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43038951152) | [Run 43480574724](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43480574724) |
-| Auth | [Run 43032326577](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43032326577) | [Run 43637652897](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43637652897) | [Run 43032701618](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43032701618) | [Run 43735623612](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43735623612) |
-| Database | [Run 43029381977](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43029381977) | ver [seção 2](#evidências-de-execução-do-provisionamento) | [Run 43029800311](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43029800311) | ver [seção 2](#evidências-de-execução-do-provisionamento) |
-| Kubernetes | [Run 43027606288](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43027606288) | [Run 43638170090](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43638170090) | [Run 43027994762](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43027994762) | [Run 43730415946](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43730415946) |
+| OS Service | [Run 43752133107](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752133107) | [Run 43752132937](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752132937) | [Run 43758915448](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915448) | [Run 43758915541](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915541) |
+| Orçamento e Pagamento | [Run 43750271414](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43750271414) | [Run 43750271584](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43750271584) | [Run 43757359744](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43757359744) | [Run 43757359907](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43757359907) |
+| Diagnóstico e Reparo | [Run 43749234074](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43749234074) | [Run 43749234095](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43749234095) | [Run 43755583520](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583520) | [Run 43755583551](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583551) |
+| Auth | [Run 43748336126](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43748336126) | [Run 43748336352](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43748336352) | [Run 43754756351](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43754756351) | [Run 43754756452](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43754756452) |
+| Database | [Run 43746887081](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887081) | ver [seção 2](#evidências-de-execução-do-provisionamento) | [Run 43753305949](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753305949) | ver [seção 2](#evidências-de-execução-do-provisionamento) |
+| Kubernetes | [Run 43747707504](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43747707504) | [Run 43747707608](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43747707608) | [Run 43754095256](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43754095256) | [Run 43754095247](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43754095247) |
 
 Os runs do quadro foram concluídos com `success`.
 
@@ -264,12 +264,12 @@ Nos 3 microsserviços, os checks obrigatórios são `Repository validation`, `Bu
 
 | Projeto | Último Pull Request de promoção | Histórico de Pull Requests |
 |---|---|---|
-| OS Service | [PR #6 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/6) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pulls?q=is%3Apr) |
-| Orçamento e Pagamento | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pulls?q=is%3Apr) |
-| Diagnóstico e Reparo | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pulls?q=is%3Apr) |
-| Auth | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pulls?q=is%3Apr) |
-| Database | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pulls?q=is%3Apr) |
-| Kubernetes | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pulls?q=is%3Apr) |
+| OS Service | [PR #8 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/8) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pulls?q=is%3Apr) |
+| Orçamento e Pagamento | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pull/4) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pulls?q=is%3Apr) |
+| Diagnóstico e Reparo | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pull/4) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pulls?q=is%3Apr) |
+| Auth | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pull/4) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pulls?q=is%3Apr) |
+| Database | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pull/4) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pulls?q=is%3Apr) |
+| Kubernetes | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pull/4) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pulls?q=is%3Apr) |
 
 ## 8. Infraestrutura com Terraform e Kubernetes
 
