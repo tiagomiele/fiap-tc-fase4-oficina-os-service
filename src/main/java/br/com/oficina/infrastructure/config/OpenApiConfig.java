@@ -128,7 +128,7 @@ public class OpenApiConfig {
                 .description(
                     "API da oficina mecânica. Clientes autenticam por CPF no Auth Serverless;"
                         + " funcionários e técnicos autenticam por e-mail e senha no OS Service.")
-                .version("4.1.0"))
+                .version("4.0.0"))
         .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
         .components(components)
         .path("/auth/cpf", new PathItem().post(cpfAuthentication));
