@@ -276,15 +276,6 @@ Para operar um ambiente só com scripts e menus (subir, retomar depois do Start 
 - [Saga: comandos, eventos, compensações e validação](docs-fase4/saga/README.md)
 - [Bootstrap detalhado da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)
 
-## 13. Projetos relacionados e histórico
-
-- [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service)
-- [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service)
-- [Auth Serverless](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless)
-- [Database Infra](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra)
-- [Kubernetes Infra](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra)
-- Fases anteriores: [Fase 1](docs-fase1), [Fase 2](docs-fase2), [Fase 3](docs-fase3), [requisitos da Fase 3](docs-fase3/README-requisitos-obrigatorios-fase3.md), [índice de evidências da Fase 3](docs-fase3/README-Indice-Evidencia-fase3.md) e [projeto original da Fase 3](https://github.com/tiagomiele/fiap-tech-challenge-fase3-oficina-backend)
-
 ## Licença
 
 Consulte o arquivo [LICENSE](LICENSE).
