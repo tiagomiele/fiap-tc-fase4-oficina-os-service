@@ -1,7 +1,5 @@
 # Visão de negócio e engenharia: Fase 4
 
-Voltar para a [documentação central](../README.md).
-
 ## 1. Contexto de negócio
 
 A Oficina apoia a operação de uma oficina mecânica. Ela reúne num só sistema informações que costumam ficar espalhadas entre o atendimento, a equipe técnica, o estoque, os fornecedores e o financeiro.
