@@ -412,12 +412,10 @@ O Auth tem o contrato OpenAPI em [`docs/openapi/oficina-auth.yaml`](https://gith
 
 | Tópico                                             | O que mostrar                                                                                         | Link |
 |------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|---|
-| Fluxo completo de uma OS pelos microsserviços              | Swagger dos 3 serviços, do `RECEBIDA` ao `ENTREGUE`, com pagamento no Mercado Pago                    | https://vimeo.com/1247650821
-|
+| Fluxo completo de uma OS pelos microsserviços              | Swagger dos 3 serviços, do `RECEBIDA` ao `ENTREGUE`, com pagamento no Mercado Pago                    | https://vimeo.com/1247650821 |
 | Fluxo completo de uma OS pelos microsserviços automatizado | Através do prompt pelo PowerSell, com pagamento no Mercado Pago                                       | https://vimeo.com/1247607046 |
 | Validações infra AWS para o projeto da fase 4              | Acesso atraves do AWS Academy | https://vimeo.com/1247654917 |
-| Monitoramento e rastreamento                               | Dashboard `Oficina-fase4-<env> | https://vimeo.com/1247675617
-|
+| Monitoramento e rastreamento                               | Dashboard `Oficina-fase4-<env> | https://vimeo.com/1247675617 |
 
 ## 13. Justificativa da divisão e das tecnologias
 
