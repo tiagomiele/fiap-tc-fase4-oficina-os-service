@@ -5,7 +5,6 @@
 Este repositório é o ponto de entrada funcional e técnico da Oficina Fase 4. Por ele dá para entender o negócio, a divisão em microsserviços, a Saga, o CI/CD, a subida e a destruição na AWS e as evidências. O detalhe de cada parte fica no README do repositório responsável (seção 3).
 
 - **Atalho conciso para as documentações e atendimento dos requisitos obrigatório do Tech Challenge - fase 4:** [README-requisitos-obrigatorios-fase4.md](README-requisitos-obrigatorios-fase4.md)
-- **Índice das documentações e evidências: Tech Challenge - Fase 4** [README-Indice-Evidencia-fase4.md](README-Indice-Evidencia-fase4.md)
 
 ## 1. Visão de negócio
 
@@ -210,13 +209,13 @@ A suíte inclui testes unitários, integração, persistência, segurança, cont
 
 ### Evidência de cobertura de testes
 
-O build falha se a cobertura ficar abaixo de 80% (JaCoCo, `<minimum>0.80</minimum>` no `pom.xml`). Último CI verde em `homolog` (02/11/2026):
+O build falha se a cobertura ficar abaixo de 80% (JaCoCo, `<minimum>0.80</minimum>` no `pom.xml`). Último CI verde na `main` (15/11/2026, 173 testes):
 
 | Linhas | Instruções | Branches | Relatório |
 |---|---|---|---|
-| 84,4% | 83,3% | 71,3% | artefato `jacoco-report` do [run 41484365373](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/41484365373) |
+| 84,6% | 83,4% | 71,7% | artefato `jacoco-report` do [run 43758915448](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915448) |
 
-Quality Gate do SonarCloud: [painel do projeto](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-os-service&branch=homolog). Para gerar o relatório local: `./mvnw verify` e abra `target/site/jacoco/index.html`.
+Quality Gate do SonarCloud: [painel do projeto](docs-fase4/Evid%C3%AAncias/Quality-Gate-OS-Service.pdf). Para gerar o relatório local: `./mvnw verify` e abra `target/site/jacoco/index.html`.
 
 ### Configuração
 
@@ -271,7 +270,6 @@ Para operar um ambiente só com scripts e menus (subir, retomar depois do Start 
 ## 12. Documentação e evidências
 
 - [Requisitos obrigatórios da Fase 4](README-requisitos-obrigatorios-fase4.md)
-- [Índice das documentações e evidências](README-Indice-Evidencia-fase4.md)
 - [Visão de negócio e engenharia](docs-fase4/visao-negocio-e-engenharia-fase4.md)
 - [Saga: comandos, eventos, compensações e validação](docs-fase4/saga/README.md)
 - [Bootstrap detalhado da Fase 4](docs-fase4/bootstrap-aws-do-zero-fase4.md)

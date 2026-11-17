@@ -56,8 +56,20 @@ Os links abaixo comprovam onde cada responsabilidade exigida pelo enunciado foi 
 
 ### Evidências de execução da separação em microsserviços
 
-- [EKS — Implantações dos 3 serviços, um namespace por serviço](docs-fase4/evidencias/01-microsservicos/) — *incluir print*.
-- [Swagger de cada serviço em execução](docs-fase4/evidencias/01-microsservicos/) — *incluir prints*.
+**EKS — Implantações dos 3 serviços, um namespace por serviço**
+
+- [EKS-Clusters - Homologação e Produção](docs-fase4/Evidencias/EKS-Clusters.pdf)
+- [Evidência - EKS-Cluster-Producao](docs-fase4/Evidencias/EKS-Cluster-Producao.pdf)
+- [Evidência - EKS-Recursos-Produção](docs-fase4/Evidencias/EKS-Recursos.pdf)
+
+**Swagger de cada serviço em execução**
+
+| Swagger execução serviço        | versão compactada                                                                                            | versão expandida                                          |
+|---------------------------------|--------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| Oficina-API                     | [Swagger-Oficina-API-Compactado](docs-fase4/Evidencias/Swagger-Oficina-API-Compactado.pdf)                   | [Swagger-Oficina-API-Expandido](docs-fase4/Evidencias/Swagger-Oficina-API-Expandido.pdf) |
+| Diagnostico-e-Reparo-Expandido  | [Swagger-Diagnostico-e-Reparo-Compactado](docs-fase4/Evidencias/Swagger-Diagnostico-e-Reparo-Compactado.pdf) | [Swagger-Diagnostico-e-Reparo-Expandido](docs-fase4/Evidencias/Swagger-Diagnostico-e-Reparo-Expandido.pdf) |
+| Orcamento-Pagamento             | [Swagger-Orcamento-Pagamento-Compactado](docs-fase4/Evidencias/Swagger-Orcamento-Pagamento-Compactado.pdf)   | [Swagger-Orcamento-Pagamento-Expandido](docs-fase4/Evidencias/Swagger-Orcamento-Pagamento-Expandido.pdf) |
+
 - **Pagamento validado em produção com o Mercado Pago Sandbox:** OS `OS-112026-000001`, pagamento `APROVADO`, provedor `mercadopago`, OS em `PAGA`. Roteiro reproduzível: [`scripts/pagamento-mercadopago.ps1`](scripts/pagamento-mercadopago.ps1).
 
 ## 2. Banco de dados próprio: SQL e NoSQL
@@ -80,14 +92,22 @@ Como ver os dados gravados (DBeaver/`psql` por túnel, Console do DynamoDB, SQS 
 
 | Componente | Homologação | Produção |
 |---|---|---|
-| Database OS (RDS + SQS) | [Run 43610368364](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43610368364) | [Run 43732234220](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43732234220) |
-| Database Orçamento e Pagamento (RDS + SQS) | [Run 43611579716](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43611579716) | [Run 43733431259](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43733431259) |
-| Database Diagnóstico e Reparo (DynamoDB + SQS) | [Run 43612731260](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43612731260) | [Run 43734678178](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43734678178) |
+| Database OS (RDS + SQS) | [Run 43746887072](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887072) | [Run 43753305999](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753305999) |
+| Database Orçamento e Pagamento (RDS + SQS) | [Run 43746887105](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887105) | [Run 43753306036](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753306036) |
+| Database Diagnóstico e Reparo (DynamoDB + SQS) | [Run 43746887210](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887210) | [Run 43753306108](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753306108) |
 
 ### Evidências complementares
 
-- [Aurora and RDS — os 2 bancos `Disponível`](docs-fase4/evidencias/02-banco-de-dados/) — *incluir print*.
-- [DynamoDB — item da execução de uma OS](docs-fase4/evidencias/02-banco-de-dados/) — *incluir print*.
+**Aurora and RDS — os 2 bancos `Disponível` para cada ambiente (homologação e produção)**
+- [Evidência bancos de dados relacional, Aurora and RDS para os ambientes de homologação e produção](docs-fase4/Evidencias/BDs-Aurora-and-RDS.jpeg)
+- [Evidência banco de dados relacional do projeto orçamento-pagamento para o ambiente de produção](docs-fase4/Evidencias/BD-production-orcamento-pagamento.jpeg)
+- [Evidência banco de dados relacional do projeto ordem-de-serviço para o ambiente de produção](docs-fase4/Evidencias/BD-production-os-db.jpeg)
+
+**DynamoDB — item da execução de uma OS**
+- [Evidência banco de dados Nosql-DynamoDB para o projeto Oficina](docs-fase4/Evidencias/BD-Nosql-DynamoDB-Oficina.jpeg)
+- [Evidência banco de dados Nosql-DynamoDB para execuções de tabelas](docs-fase4/Evidencias/BD-Nosql-DynamoDB-Oficina-tabela-execucao.jpeg)
+- [Evidência banco de dados Nosql-DynamoDB para execuções de tabelas no ambiente de produção](docs-fase4/Evidencias/BD-Nosql-Oficina-tabela-execucao-producao.jpeg)
+- [Evidência banco de dados Nosql-DynamoDB para execuções de tabelas no ambiente de produção e visualização de dados](docs-fase4/Evidencias/BD-Nosql-Oficina-tabela-execucao-producao-dados.jpeg)
 
 ## 3. Comunicação entre microsserviços
 
@@ -113,9 +133,10 @@ Cada fila tem uma DLQ, para onde a mensagem vai depois de 5 tentativas sem suces
 
 ### Evidências de execução da comunicação
 
-- [SQS — as 6 filas (3 principais e 3 DLQs)](docs-fase4/evidencias/03-comunicacao/) — *incluir print*.
-- [SQS — regra da DLQ, com Número máximo de recebimentos = 5](docs-fase4/evidencias/03-comunicacao/) — *incluir print*.
-- [CloudWatch — `NumberOfMessagesSent` das 3 filas na ordem da Saga](docs-fase4/evidencias/03-comunicacao/) — *incluir print*.
+- [SQS - Evidências filas do projeto Oficina-fase4 no ambiente de produção](docs-fase4/Evidencias/Evidencia-filias-SQS.jpeg)
+- [SQS - Evidências fila saga para consumo de diagnóstico/reparo](docs-fase4/Evidencias/Evidencia-SQS-consumo-diagnostico-reparo.jpeg)
+- [SQS - Evidências fila saga para consumo de orcamento/pagamento](docs-fase4/Evidencias/Evidencia-SQS-consumo-orcamento-pagamento.jpeg)
+- [CloudWatch - `NumberOfMessagesSent` - Evidência métricas fila saga do projeto Oficina-fase4](docs-fase4/Evidencias/Evidencia-SQS-metrica-filas-consumos-oficina.jpeg)
 
 ## 4. Saga Pattern
 
@@ -159,12 +180,12 @@ Cada fila tem uma DLQ, para onde a mensagem vai depois de 5 tentativas sem suces
 
 ### Evidências de execução da Saga
 
-| Contexto | Tipo | Execução |
-|---|---|---|
-| `homolog` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43507318947](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43507318947) |
-| `main` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43508212391](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43508212391) |
-| Homologação | Validação funcional E2E (Postman/Newman) | [Run 43101361602](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43101361602) |
-| Produção | Validação funcional E2E (Postman/Newman) | [Run 43325386467](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43325386467) |
+| Contexto | Tipo | Execução | Evidência                                                                            |
+|---|---|---|--------------------------------------------------------------------------------------|
+| `homolog` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43752132950](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752132950) | [Bdd Report 43752132950](docs-fase4/Evidencias/bdd-report-run-43752132950.jpeg)  |
+| `main` | BDD da Saga (fluxo feliz e 4 compensações) | [Run 43758915364](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915364) | [Bdd Report 43758915364](docs-fase4/Evidencias/bdd-report-run-43758915364.jpeg) |
+| Homologação | Validação funcional E2E (Postman/Newman) | [Run 43769459121](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43769459121) | -                                                                                    |
+| Produção | Validação funcional E2E (Postman/Newman) | [Run 43769648237](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43769648237) | -                                                                                    |
 
 ### Evidências complementares
 
@@ -188,18 +209,17 @@ Os 3 microsserviços têm testes unitários, cobertura mínima de 80% validada n
 
 ### Evidências de cobertura e qualidade
 
-| Serviço | Linhas | Instruções | Branches | Execução (artefato `jacoco-report`) | SonarCloud |
-|---|---|---|---|---|---|
-| OS Service | 84,4% | 83,3% | 71,3% | [Run 41484365373](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/41484365373) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-os-service&branch=homolog) |
-| Orçamento e Pagamento | 99,0% | 99,4% | 93,9% | [Run 41473064053](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/41473064053) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-orcamento-pagamento-service&branch=homolog) |
-| Diagnóstico e Reparo | 99,4% | 99,2% | 92,5% | [Run 41476675173](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/41476675173) | [Quality Gate](https://sonarcloud.io/summary/overall?id=tiagomiele_fiap-tc-fase4-oficina-diagnostico-reparo-service&branch=homolog) |
+| Serviço | Linhas | Instruções | Branches | Execução (artefato `jacoco-report`) | SonarCloud                                                                        |
+|---|---|---|---|---|-----------------------------------------------------------------------------------|
+| OS Service | 84,6% | 83,4% | 71,7% | [Run 43758915448](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915448) | [Quality Gate](docs-fase4/Evidencias/Quality-Gate-OS-Service.pdf)                 |
+| Orçamento e Pagamento | 98,9% | 99,3% | 93,8% | [Run 43757359744](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43757359744) | [Quality Gate](docs-fase4/Evidencias/Quality-Gate-Orcamento-e-Pagamento.pdf) |
+| Diagnóstico e Reparo | 99,4% | 99,2% | 92,5% | [Run 43755583520](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583520) | [Quality Gate](docs-fase4/Evidencias/Quality-Gate-Diagnostico-e-Reparo.pdf)  |
 
-Os valores vêm do relatório JaCoCo do último CI verde em `homolog` (02/11/2026). O Quality Gate do SonarCloud está **PASSED** nesses runs. Cada README também traz a evidência de cobertura: [OS](README.md#evidência-de-cobertura-de-testes), [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) e [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes).
+Os valores vêm do relatório JaCoCo do último CI verde na `main`. O Quality Gate do SonarCloud está **PASSED** nesses runs. Cada README também traz a evidência de cobertura: [OS](README.md), [Orçamento e Pagamento](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) e [Diagnóstico e Reparo](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes).
 
 ### Evidências complementares
 
-- [SonarCloud — Quality Gate dos 3 serviços](docs-fase4/evidencias/05-testes-qualidade/) — *incluir prints*.
-- [Relatório JaCoCo dos 3 serviços](docs-fase4/evidencias/05-testes-qualidade/) — *incluir prints*.
+- [SonarCloud — Quality Gate dos 3 serviços](docs-fase4/Evidencias/sonarcloud-oficina-fase4.pdf)
 
 ## 6. CI/CD automatizado
 
@@ -230,12 +250,12 @@ Cada microsserviço tem pipeline de CI/CD independente, no próprio repositório
 
 | Projeto | CI `homolog` | Deploy homologação | CI `main` | Deploy produção |
 |---|---|---|---|---|
-| OS Service | [Run 43507319113](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43507319113) | [Run 43614703425](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43614703425) | [Run 43508212590](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43508212590) | [Run 43737788323](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43737788323) |
-| Orçamento e Pagamento | [Run 43046450848](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43046450848) | [Run 43640476466](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43640476466) | [Run 43047871464](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43047871464) | [Run 43489759299](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43489759299) |
-| Diagnóstico e Reparo | [Run 43038356507](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43038356507) | [Run 43616496310](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43616496310) | [Run 43038951152](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43038951152) | [Run 43480574724](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43480574724) |
-| Auth | [Run 43032326577](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43032326577) | [Run 43637652897](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43637652897) | [Run 43032701618](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43032701618) | [Run 43735623612](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43735623612) |
-| Database | [Run 43029381977](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43029381977) | ver [seção 2](#evidências-de-execução-do-provisionamento) | [Run 43029800311](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43029800311) | ver [seção 2](#evidências-de-execução-do-provisionamento) |
-| Kubernetes | [Run 43027606288](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43027606288) | [Run 43638170090](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43638170090) | [Run 43027994762](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43027994762) | [Run 43730415946](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43730415946) |
+| OS Service | [Run 43752133107](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752133107) | [Run 43752132937](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43752132937) | [Run 43758915448](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915448) | [Run 43758915541](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/actions/runs/43758915541) |
+| Orçamento e Pagamento | [Run 43750271414](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43750271414) | [Run 43767659956](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43767659956) | [Run 43757359744](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43757359744) | [Run 43768933783](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/actions/runs/43768933783) |
+| Diagnóstico e Reparo | [Run 43749234074](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43749234074) | [Run 43749234095](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43749234095) | [Run 43755583520](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583520) | [Run 43755583551](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/actions/runs/43755583551) |
+| Auth | [Run 43748336126](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43748336126) | [Run 43748336352](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43748336352) | [Run 43754756351](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43754756351) | [Run 43754756452](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/actions/runs/43754756452) |
+| Database | [Run 43746887081](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43746887081) | ver [seção 2](#evidências-de-execução-do-provisionamento) | [Run 43753305949](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/actions/runs/43753305949) | ver [seção 2](#evidências-de-execução-do-provisionamento) |
+| Kubernetes | [Run 43747707504](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43747707504) | [Run 43747707608](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43747707608) | [Run 43754095256](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43754095256) | [Run 43754095247](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/actions/runs/43754095247) |
 
 Os runs do quadro foram concluídos com `success`.
 
@@ -262,14 +282,14 @@ Nos 3 microsserviços, os checks obrigatórios são `Repository validation`, `Bu
 
 ### Evidências de execução da promoção para produção
 
-| Projeto | Último Pull Request de promoção | Histórico de Pull Requests |
-|---|---|---|
-| OS Service | [PR #6 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/6) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pulls?q=is%3Apr) |
-| Orçamento e Pagamento | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pulls?q=is%3Apr) |
-| Diagnóstico e Reparo | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pulls?q=is%3Apr) |
-| Auth | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pulls?q=is%3Apr) |
-| Database | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pulls?q=is%3Apr) |
-| Kubernetes | [PR #2 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pull/2) | [Histórico](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pulls?q=is%3Apr) |
+| Projeto | Último Pull Request de promoção |
+|---|---|
+| OS Service | [PR #8 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/pull/8) |
+| Orçamento e Pagamento | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/pull/4) |
+| Diagnóstico e Reparo | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/pull/4) |
+| Auth | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/pull/4) |
+| Database | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-database-infra/pull/4) |
+| Kubernetes | [PR #4 — `homolog` → `main`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-kubernetes-infra/pull/4) |
 
 ## 8. Infraestrutura com Terraform e Kubernetes
 
@@ -297,7 +317,19 @@ As réplicas, as probes e o PodDisruptionBudget dão alta disponibilidade. O HPA
 ### Evidências de execução da infraestrutura
 
 - Deploys automatizados: ver [seção 6](#evidências-de-execução-do-cicd).
-- [HCP Terraform — workspaces da solução](docs-fase4/evidencias/08-infraestrutura/) — *incluir print*.
+
+**HCP Terraform - Produção**
+
+- [Workspaces](docs-fase4/Evidencias/HCP-Terraform-Workspaces-soat-fase4.pdf)
+- [Auth Serverless](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-auth-production.pdf)
+- [Kubernetes](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-kubernetes-production.pdf)
+- [New Relic](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-newrelic-production.pdf)
+- [Database Diagnostico Reparo](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-db-diagnostico-reparo-production.pdf)
+- [Database Orçamento Pagamento](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-db-orcamento-pagamento-production.pdf)
+- [Database OS](docs-fase4/Evidencias/HCP-Terraform-oficina-fase4-db-os-production.pdf)
+
+**EKS — nós `Ready` e Implantações dos 3 serviços**
+
 - [EKS — nós `Ready` e Implantações dos 3 serviços](docs-fase4/evidencias/08-infraestrutura/) — *incluir prints*.
 
 ## 9. Autenticação Serverless e API Gateway
@@ -321,7 +353,10 @@ A autenticação da Fase 3 foi mantida e ajustada. O cliente faz login por CPF, 
 ### Evidências de execução da autenticação
 
 - Deploys do Auth: ver [seção 6](#evidências-de-execução-do-cicd).
-- [Lambda — invocações do login e do Authorizer](docs-fase4/evidencias/09-autenticacao/) — *incluir prints*.
+- [Lambda Eventos](docs-fase4/Evidencias/Lambda-Events.jpeg)
+- [Lambda Eventoss no Ambiente de Producao](docs-fase4/Evidencias/Lambda-Events-Producao.jpeg)
+- [Lambda-oficina-auth-production-authorizer](docs-fase4/Evidencias/Lambda-oficina-auth-production-authorizer.jpeg)
+- [Lambda-oficina-auth-production-login](docs-fase4/Evidencias/Lambda-oficina-auth-production-login.jpeg)
 
 ## 10. Monitoramento e rastreamento dos fluxos distribuídos
 
@@ -338,9 +373,13 @@ A observabilidade da Fase 3 (New Relic) foi mantida e estendida para os 3 servi�
 
 ### Evidências de execução da observabilidade
 
-- [New Relic — página Saga do dashboard](docs-fase4/evidencias/10-monitoramento/) — *incluir print*.
-- [New Relic — logs de uma OS filtrados por `correlationId`](docs-fase4/evidencias/10-monitoramento/) — *incluir print*.
-- [New Relic — APM dos 3 serviços](docs-fase4/evidencias/10-monitoramento/) — *incluir print*.
+- [Newrelic APM 3-servicos](docs-fase4/Evidencias/newrelic-apm-3-servicos.jpeg)
+- [Newrelic Negocio](docs-fase4/Evidencias/newrelic-RDS-negocio.jpeg)
+- [Newrelic Aplicação](docs-fase4/Evidencias/newrelic-RDS-aplicacao.jpeg)
+- [Newrelic Kubernetes](docs-fase4/Evidencias/newrelic-RDS-Kubernetes.jpeg)
+- [Newrelic Serveless e Api Gateway](docs-fase4/Evidencias/newrelic-RDS-serveless.jpeg)
+- [Newrelic RDS Postgresql](docs-fase4/Evidencias/newrelic-RDS-postgresql.jpeg)
+- [Newrelic Saga](docs-fase4/Evidencias/newrelic-saga-producao.jpeg)
 
 ## 11. Documentação arquitetural
 
@@ -358,25 +397,27 @@ A observabilidade da Fase 3 (New Relic) foi mantida e estendida para os 3 servi�
 
 ### Repositórios Git (um por microsserviço)
 
-| Entregável | OS Service | Orçamento e Pagamento | Diagnóstico e Reparo |
-|---|---|---|---|
-| Código-fonte | [src](src/) | [src](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/src) | [src](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/src) |
-| Dockerfile e manifestos Kubernetes | [Dockerfile](Dockerfile) · [k8s](k8s/) | [Dockerfile](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/Dockerfile) · [k8s](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/k8s) | [Dockerfile](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/Dockerfile) · [k8s](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/k8s) |
-| Pipelines de CI/CD | [workflows](.github/workflows/) | [workflows](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/.github/workflows) | [workflows](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/.github/workflows) |
-| Evidência de cobertura | [README](README.md#evidência-de-cobertura-de-testes) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes) |
-| Arquitetura do serviço | [README](README.md) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service#readme) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service#readme) |
-| Swagger ou Postman | `/swagger-ui.html` e [collection Postman](tests/postman/oficina-weeks4-5.postman_collection.json) | `/swagger-ui.html` ([README, seção 7](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#7-api-swagger)) | `/swagger-ui.html` ([README, seção 6](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#6-api-swagger)) |
+| Entregável | OS Service                                                                                                                    | Orçamento e Pagamento | Diagnóstico e Reparo |
+|---|-------------------------------------------------------------------------------------------------------------------------------|---|---|
+| Código-fonte | [src](src)                                                                                                                    | [src](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/src) | [src](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/src) |
+| Dockerfile e manifestos Kubernetes | [Dockerfile](Dockerfile) · [k8s](k8s/)                                                                                        | [Dockerfile](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/Dockerfile) · [k8s](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/k8s) | [Dockerfile](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/Dockerfile) · [k8s](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/k8s) |
+| Pipelines de CI/CD | [workflows](.github/workflows/)                                                                                               | [workflows](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/tree/main/.github/workflows) | [workflows](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/tree/main/.github/workflows) |
+| Evidência de cobertura | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/blob/main/README.md#evidência-de-cobertura-de-testes) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#evidência-de-cobertura-de-testes) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#evidência-de-cobertura-de-testes) |
+| Arquitetura do serviço | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-os-service/blob/main/README.md#4.-Modelo-arquitetural-e-práticas)   | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service#readme) | [README](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service#readme) |
+| Swagger ou Postman | `/swagger-ui.html` e [collection Postman](tests/postman/oficina-weeks4-5.postman_collection.json)                             | `/swagger-ui.html` ([README, seção 7](https://github.com/tiagomiele/fiap-tc-fase4-oficina-orcamento-pagamento-service/blob/main/README.md#7-api-swagger)) | `/swagger-ui.html` ([README, seção 6](https://github.com/tiagomiele/fiap-tc-fase4-oficina-diagnostico-reparo-service/blob/main/README.md#6-api-swagger)) |
 
 O Auth tem o contrato OpenAPI em [`docs/openapi/oficina-auth.yaml`](https://github.com/tiagomiele/fiap-tc-fase4-oficina-auth-serverless/blob/main/docs/openapi/oficina-auth.yaml).
 
-### Vídeo de demonstração (até 15 minutos)
+### Vídeo de demonstrações
 
-| Tópico exigido | O que mostrar | Link |
-|---|---|---|
-| Fluxo completo de uma OS pelos microsserviços | Swagger dos 3 serviços, do `RECEBIDA` ao `ENTREGUE`, com pagamento no Mercado Pago | *a incluir* |
-| Execução do Saga Pattern e tratamento de falhas | Compensações (rejeição, estoque insuficiente e pagamento recusado), histórico da OS e DLQ | *a incluir* |
-| Deploy automatizado com validação de testes | PR para `homolog` → CD com testes → deploy no EKS → promoção para `main` | *a incluir* |
-| Monitoramento e rastreamento | Dashboard `Oficina-fase4-<env>`, página Saga, e logs por `correlationId` | *a incluir* |
+| Tópico                                             | O que mostrar                                                                                         | Link |
+|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|---|
+| Fluxo completo de uma OS pelos microsserviços              | Swagger dos 3 serviços, do `RECEBIDA` ao `ENTREGUE`, com pagamento no Mercado Pago                    | https://vimeo.com/1247650821
+|
+| Fluxo completo de uma OS pelos microsserviços automatizado | Através do prompt pelo PowerSell, com pagamento no Mercado Pago                                       | https://vimeo.com/1247607046 |
+| Validações infra AWS para o projeto da fase 4              | Acesso atraves do AWS Academy | https://vimeo.com/1247654917 |
+| Monitoramento e rastreamento                               | Dashboard `Oficina-fase4-<env> | https://vimeo.com/1247675617
+|
 
 ## 13. Justificativa da divisão e das tecnologias
 
